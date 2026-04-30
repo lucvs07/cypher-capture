@@ -109,10 +109,10 @@ Fine-tune a pre-trained YOLO model on the PPE dataset:
 
 ```bash
 # Default: yolo11n.pt, 100 epochs, batch 16, imgsz 640
-python src/train.py
+python -m src.train
 
 # Custom settings
-python src/train.py \
+python -m src.train \
   --model yolo11s.pt \
   --epochs 150 \
   --batch 32 \
@@ -137,20 +137,20 @@ cp outputs/runs/ppe_v1/weights/best.pt models/best.pt
 ### Webcam (live stream)
 
 ```bash
-python src/detect.py --model models/best.pt --source usb0
+python -m src.detect --model models/best.pt --source usb0
 ```
 
 ### Video file
 
 ```bash
-python src/detect.py --model models/best.pt --source path/to/video.mp4 --thresh 0.45
+python -m src.detect --model models/best.pt --source path/to/video.mp4 --thresh 0.45
 ```
 
 ### Single image or directory
 
 ```bash
-python src/detect.py --model models/best.pt --source path/to/image.jpg
-python src/detect.py --model models/best.pt --source path/to/images/
+python -m src.detect --model models/best.pt --source path/to/image.jpg
+python -m src.detect --model models/best.pt --source path/to/images/
 ```
 
 ### Shell wrapper

@@ -14,4 +14,4 @@ if [[ ! -f "$MODEL" ]]; then
   exit 1
 fi
 
-python src/detect.py --model "$MODEL" --source "$SOURCE" --thresh "$THRESH" "$@"
+python -m src.detect --model "$MODEL" --source "$SOURCE" --thresh "$THRESH" "$@"
