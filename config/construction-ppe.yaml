@@ -1,0 +1,23 @@
+# Construction-PPE Dataset — Ultralytics format
+# Source: https://docs.ultralytics.com/datasets/detect/construction-ppe/
+# License: AGPL-3.0
+# Images: 1,416 total (train: 1,132 | val: 143 | test: 141)
+
+path: data/construction-ppe
+train: images/train
+val: images/val
+test: images/test
+
+nc: 11
+names:
+  0: Gloves
+  1: Goggles
+  2: Helmet
+  3: Person
+  4: Vest
+  5: Boots
+  6: no_gloves
+  7: no_goggle
+  8: no_helmet
+  9: no_boots
+  10: none
