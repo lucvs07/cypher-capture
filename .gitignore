@@ -1,0 +1,52 @@
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Dataset (download via script)
+data/construction-ppe/
+data/*.zip
+
+# Model weights (track only intentionally)
+models/*.pt
+models/*.onnx
+models/*.ncnn
+!models/.gitkeep
+
+# Training artifacts — keep the placeholder, ignore content
+outputs/runs/*
+!outputs/runs/.gitkeep
+
+# Inference captures — keep the placeholder, ignore content
+outputs/captures/*
+!outputs/captures/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
