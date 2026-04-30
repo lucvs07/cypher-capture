@@ -1,10 +1,10 @@
 """
 Real-time PPE detection from webcam, video file, or image directory.
 
-Usage:
-    python -m src.detect --model models/best.pt --source usb0
-    python -m src.detect --model models/best.pt --source video.mp4 --thresh 0.45
-    python -m src.detect --model models/best.pt --source images/ --no-upload
+Usage (run from the project root):
+    python src/detect.py --model models/best.pt --source usb0
+    python src/detect.py --model models/best.pt --source video.mp4 --thresh 0.45
+    python src/detect.py --model models/best.pt --source images/ --no-upload
 """
 
 import argparse
@@ -15,13 +15,16 @@ import time
 import requests
 from pathlib import Path
 
+# Ensure project root is on sys.path regardless of how this script is invoked
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import cv2
 import numpy as np
 from dotenv import load_dotenv
 from ultralytics import YOLO
 
-from .utils.visualization import draw_detections, VIOLATION_CLASSES
-from .utils.upload import build_snapshot, upload_snapshot
+from src.utils.visualization import draw_detections, VIOLATION_CLASSES
+from src.utils.upload import build_snapshot, upload_snapshot
 
 load_dotenv()
 
