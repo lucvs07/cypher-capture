@@ -6,7 +6,7 @@ Usage (run from the project root):
     python src/detect.py --model models/best.pt --source video.mp4 --thresh 0.45
     python src/detect.py --model models/best.pt --source images/ --no-upload
 """
-
+# Imports
 import argparse
 import os
 import sys
