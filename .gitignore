@@ -25,7 +25,6 @@ data/construction-ppe/
 data/*.zip
 
 # Model weights (track only intentionally)
-models/*.pt
 models/*.onnx
 models/*.ncnn
 !models/.gitkeep
