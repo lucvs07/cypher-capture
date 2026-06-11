@@ -46,7 +46,10 @@ class TemporalAnalyzer:
         x1, y1, x2, y2 = bbox
         com = ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
         self._com[person_id].append(com)
-        self._trunk_angles[person_id].append(angles.trunk_flexion or 0.0)
+        # Skip occluded frames entirely — recording 0.0 for an undetermined
+        # angle would inject a square-wave artifact into the autocorrelation.
+        if angles.trunk_flexion is not None:
+            self._trunk_angles[person_id].append(angles.trunk_flexion)
 
         if is_bad_posture:
             self._bad_posture_streak[person_id] += 1
@@ -99,7 +102,12 @@ class TemporalAnalyzer:
         n = len(signal)
         corr = np.correlate(signal, signal, mode="full")[n - 1:]
         corr /= corr[0]
-        if len(corr) < 4:
+        # Small lags of any smooth signal correlate near 1.0 regardless of
+        # periodicity, so the secondary peak is only meaningful after the
+        # first zero crossing. No zero crossing in the window = no completed
+        # cycle = not repetitive.
+        negative = np.where(corr < 0)[0]
+        if len(negative) == 0:
             return 0.0
-        # Skip lag 0 (always 1.0) and look for secondary peak
-        return float(np.max(np.abs(corr[2:])))
+        after = corr[negative[0]:]
+        return float(max(0.0, np.max(after)))
