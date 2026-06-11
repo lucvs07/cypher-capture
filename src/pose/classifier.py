@@ -74,11 +74,15 @@ class PostureClassifier:
             current = state
             self._states[person_id] = current
             self._exit_counters[person_id] = 0
-        elif raw_cat == PostureCategory.NORMAL and current.category != PostureCategory.NORMAL:
-            self._exit_counters[person_id] += 1
-            if self._exit_counters[person_id] >= self.EXIT_FRAMES:
-                current = PostureState()
-                self._states[person_id] = current
+        elif current.category != PostureCategory.NORMAL:
+            if raw_cat == PostureCategory.NORMAL:
+                self._exit_counters[person_id] += 1
+                if self._exit_counters[person_id] >= self.EXIT_FRAMES:
+                    current = PostureState()
+                    self._states[person_id] = current
+                    self._exit_counters[person_id] = 0
+            else:
+                # exit requires *consecutive* normal frames
                 self._exit_counters[person_id] = 0
 
         current.frames_in_state += 1
@@ -183,6 +187,13 @@ class PostureClassifier:
         cat: PostureCategory,
         reason: str,
     ) -> Optional[PostureState]:
+        if cat == PostureCategory.NORMAL:
+            # NORMAL is never "entered" through this path — leaving an alarm
+            # state goes exclusively through the EXIT_FRAMES counter in
+            # update(), keeping alarms sticky (recall priority).
+            self._pending.pop(person_id, None)
+            return None
+
         pending = self._pending.get(person_id)
         enter_threshold = (
             self.ENTER_FRAMES_RISK
@@ -200,6 +211,9 @@ class PostureClassifier:
         current_cat = self._states.get(person_id, PostureState()).category
         if cat != current_cat and count >= enter_threshold:
             self._pending.pop(person_id)
-            return PostureState(category=cat, reason=reason, frames_in_state=0)
+            # The posture already persisted `count` raw frames before being
+            # confirmed; start the counter there so sustained_seconds is honest
+            # (update() increments once more right after).
+            return PostureState(category=cat, reason=reason, frames_in_state=count - 1)
 
         return None
