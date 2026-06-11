@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Literal
 
@@ -69,7 +69,11 @@ class ZoneManager:
     def _load(self) -> None:
         with open(self._path) as f:
             data = json.load(f)
+        # Ignore unknown keys so a hand-annotated zones.json (e.g. with a
+        # "comment" field) can't crash the pipeline at startup.
+        known = {f.name for f in fields(Zone)}
         for item in data:
+            item = {k: v for k, v in item.items() if k in known}
             item["polygon"] = [tuple(p) for p in item["polygon"]]
             z = Zone(**item)
             self._zones[z.zone_id] = z
