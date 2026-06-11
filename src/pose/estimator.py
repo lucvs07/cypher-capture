@@ -83,7 +83,10 @@ class PoseEstimator:
             ids = r.boxes.id
 
             for i in range(len(kps_data)):
-                person_id = int(ids[i]) if ids is not None else i
+                # ByteTrack IDs are positive; use negative fallback IDs for
+                # not-yet-confirmed tracks so they can never collide with (and
+                # poison the per-person state of) a real track ID.
+                person_id = int(ids[i]) if ids is not None else -(i + 1)
                 poses.append(PersonPose(
                     person_id=person_id,
                     keypoints=kps_data[i, :, :2],
