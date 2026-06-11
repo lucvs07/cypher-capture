@@ -20,7 +20,7 @@ from ..pose.reba import compute_reba
 from ..pose.classifier import PostureCategory, PostureClassifier
 from ..pose.temporal import TemporalAnalyzer
 from ..zones.manager import ZoneManager
-from ..zones.detector import ZoneDetector
+from ..zones.detector import ZoneDetector, ZoneStatus
 from ..fusion.engine import DecisionEngine, PersonEvent
 from ..utils.pose_visualization import draw_pose_overlay
 
@@ -98,7 +98,10 @@ class UnifiedPipeline:
 
             feet = [pt for pt in [pose.kp("left_ankle"), pose.kp("right_ankle")] if pt]
             zone_results = self._zone_detector.check(pose.person_id, feet)
-            in_zone = bool(zone_results)
+            # Only actual zone *entry* drives the CRITICAL_ZONE posture state;
+            # APPROACHING results still reach the decision engine, which maps
+            # them to their own (lower) severity.
+            in_zone = any(z.status == ZoneStatus.INSIDE for z in zone_results)
 
             # Temporal metrics use the previous frame's confirmed state (one
             # frame of lag) so the fall-risk score can feed this frame's rules.
@@ -124,6 +127,10 @@ class UnifiedPipeline:
         elapsed_ms = (time.perf_counter() - t0) * 1000
         if elapsed_ms > self.config.max_latency_ms and self._epi_stride < 4:
             self._epi_stride += 1
+        elif elapsed_ms < self.config.max_latency_ms * 0.7 and self._epi_stride > 1:
+            # recover when latency drops well below budget (the 0.7 margin
+            # avoids oscillating around the threshold)
+            self._epi_stride -= 1
 
         return annotated, events
 
