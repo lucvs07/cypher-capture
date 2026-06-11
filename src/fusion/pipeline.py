@@ -7,17 +7,18 @@ Latency management: if combined inference exceeds max_latency_ms, EPI model skip
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Optional
 
 import cv2
 import numpy as np
+import yaml
 from ultralytics import YOLO
 
 from ..pose.estimator import PersonPose, PoseEstimator
 from ..pose.angles import extract_angles
 from ..pose.reba import compute_reba
-from ..pose.classifier import PostureCategory, PostureClassifier
+from ..pose.classifier import ClassifierThresholds, PostureCategory, PostureClassifier
 from ..pose.temporal import TemporalAnalyzer
 from ..zones.manager import ZoneManager
 from ..zones.detector import ZoneDetector, ZoneStatus
@@ -35,6 +36,32 @@ class PipelineConfig:
     zones_config: str = "config/zones/zones.json"
     target_fps: float = 15.0
     max_latency_ms: float = 200.0
+    epi_stride_max: int = 4
+    approach_buffer_px: float = 80.0
+    enter_frames: int = 5
+    enter_frames_risk: int = 2
+    exit_frames: int = 15
+    thresholds: ClassifierThresholds = field(default_factory=ClassifierThresholds)
+
+    @classmethod
+    def from_yaml(cls, path: str = "config/pose_config.yaml") -> "PipelineConfig":
+        """Build a config from the YAML file; unknown keys are ignored."""
+        with open(path) as f:
+            raw = yaml.safe_load(f) or {}
+
+        flat: dict = {}
+        for section in ("pipeline", "classifier", "zones"):
+            flat.update(raw.get(section) or {})
+
+        known = {f.name for f in fields(cls)} - {"thresholds"}
+        config = cls(**{k: v for k, v in flat.items() if k in known})
+
+        th_known = {f.name for f in fields(ClassifierThresholds)}
+        th_raw = raw.get("thresholds") or {}
+        config.thresholds = ClassifierThresholds(
+            **{k: v for k, v in th_raw.items() if k in th_known}
+        )
+        return config
 
 
 class UnifiedPipeline:
@@ -48,10 +75,16 @@ class UnifiedPipeline:
     def __init__(self, config: PipelineConfig) -> None:
         self.config = config
         self._pose = PoseEstimator(config.pose_model_path, config.conf_pose, config.device)
-        self._classifier = PostureClassifier(fps=config.target_fps)
+        self._classifier = PostureClassifier(
+            fps=config.target_fps,
+            thresholds=config.thresholds,
+            enter_frames=config.enter_frames,
+            exit_frames=config.exit_frames,
+            enter_frames_risk=config.enter_frames_risk,
+        )
         self._temporal = TemporalAnalyzer(fps=config.target_fps)
         self._zones = ZoneManager(config.zones_config)
-        self._zone_detector = ZoneDetector(self._zones)
+        self._zone_detector = ZoneDetector(self._zones, config.approach_buffer_px)
         self._decision = DecisionEngine()
         self._epi_model: Optional[YOLO] = None
         self._frame_idx = 0
@@ -127,7 +160,7 @@ class UnifiedPipeline:
         annotated = draw_pose_overlay(frame, poses, events, self._zones.get_all())
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
-        if elapsed_ms > self.config.max_latency_ms and self._epi_stride < 4:
+        if elapsed_ms > self.config.max_latency_ms and self._epi_stride < self.config.epi_stride_max:
             self._epi_stride += 1
         elif elapsed_ms < self.config.max_latency_ms * 0.7 and self._epi_stride > 1:
             # recover when latency drops well below budget (the 0.7 margin

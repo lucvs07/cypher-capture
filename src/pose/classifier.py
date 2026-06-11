@@ -5,12 +5,12 @@ Taxonomy:
   NORMAL                   — no ergonomic concern detected
   ERGONOMICALLY_INADEQUATE — sustained bad posture per NR-17 thresholds
   IMMEDIATE_RISK           — fall or collapse detected (recall-optimised)
-  CRITICAL_ZONE            — person inside or approaching a demarcated restricted area
+  CRITICAL_ZONE            — person inside a demarcated restricted area
 """
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
@@ -26,6 +26,19 @@ class PostureCategory(Enum):
 
 
 @dataclass
+class ClassifierThresholds:
+    """All rule thresholds; defaults match docs/taxonomy.md."""
+    trunk_flexion_deg: float = 60.0      # forward lean beyond this = spine load risk
+    spine_load_knee_deg: float = 150.0   # knee angle above this counts as "straight leg"
+    deep_squat_knee_deg: float = 90.0    # knee interior angle below this = deep squat
+    elevated_arm_deg: float = 90.0       # shoulder interior angle below this = arm raised
+    trunk_rotation_max: float = 0.35     # normalised shoulder/hip offset above this = instability
+    fallen_aspect_ratio: float = 1.5     # bbox w/h above this = person horizontal
+    reba_risk_score: int = 8             # REBA final score at/above this = ergonomic risk
+    fall_risk_min: float = 0.7           # TemporalAnalyzer fall_risk_score threshold
+
+
+@dataclass
 class PostureState:
     category: PostureCategory = PostureCategory.NORMAL
     reason: str = ""
@@ -37,23 +50,25 @@ class PostureClassifier:
     """
     Per-person state machine with hysteresis.
 
-    Hysteresis design: entering a high-severity state is fast (ENTER_FRAMES),
-    exiting requires more evidence (EXIT_FRAMES). This trades a small increase
+    Hysteresis design: entering a high-severity state is fast (enter_frames),
+    exiting requires more evidence (exit_frames). This trades a small increase
     in false positives for the recall guarantee required on IMMEDIATE_RISK.
     """
 
-    ENTER_FRAMES = 5    # consecutive matching frames needed to confirm a new state
-    EXIT_FRAMES = 15    # consecutive non-matching frames needed to leave a state
-
-    # IMMEDIATE_RISK uses a lower entry threshold to maximise recall
-    ENTER_FRAMES_RISK = 2
-
-    # TemporalAnalyzer.fall_risk_score (0–1) above this → IMMEDIATE_RISK.
-    # Covers falls toward/away from the camera where the bbox never widens.
-    FALL_RISK_MIN = 0.7
-
-    def __init__(self, fps: float = 15.0) -> None:
+    def __init__(
+        self,
+        fps: float = 15.0,
+        thresholds: Optional[ClassifierThresholds] = None,
+        enter_frames: int = 5,
+        exit_frames: int = 15,
+        enter_frames_risk: int = 2,
+    ) -> None:
         self.fps = fps
+        self.t = thresholds or ClassifierThresholds()
+        self.enter_frames = enter_frames
+        self.exit_frames = exit_frames
+        # IMMEDIATE_RISK uses a lower entry threshold to maximise recall
+        self.enter_frames_risk = enter_frames_risk
         self._states: dict[int, PostureState] = {}
         self._pending: dict[int, tuple[PostureCategory, str, int]] = {}
         self._exit_counters: dict[int, int] = defaultdict(int)
@@ -83,7 +98,7 @@ class PostureClassifier:
         elif current.category != PostureCategory.NORMAL:
             if raw_cat == PostureCategory.NORMAL:
                 self._exit_counters[person_id] += 1
-                if self._exit_counters[person_id] >= self.EXIT_FRAMES:
+                if self._exit_counters[person_id] >= self.exit_frames:
                     current = PostureState()
                     self._states[person_id] = current
                     self._exit_counters[person_id] = 0
@@ -115,7 +130,8 @@ class PostureClassifier:
         if self._detect_fallen(bbox):
             return PostureCategory.IMMEDIATE_RISK, "person_fallen"
 
-        if fall_risk >= self.FALL_RISK_MIN:
+        # Covers falls toward/away from the camera where the bbox never widens
+        if fall_risk >= self.t.fall_risk_min:
             return PostureCategory.IMMEDIATE_RISK, "fall_velocity"
 
         if self._detect_instability(angles):
@@ -133,50 +149,45 @@ class PostureClassifier:
         if self._detect_elevated_arm(angles):
             return PostureCategory.ERGONOMICALLY_INADEQUATE, "elevated_arm_work"
 
-        if reba.final_score >= 8:
+        if reba.final_score >= self.t.reba_risk_score:
             return PostureCategory.ERGONOMICALLY_INADEQUATE, f"reba_{reba.final_score}"
 
         return PostureCategory.NORMAL, ""
 
-    @staticmethod
-    def _detect_fallen(bbox: tuple) -> bool:
+    def _detect_fallen(self, bbox: tuple) -> bool:
         """Bbox significantly wider than tall → person horizontal (fallen)."""
         x1, y1, x2, y2 = bbox
         w = max(x2 - x1, 1.0)
         h = max(y2 - y1, 1.0)
-        return (w / h) > 1.5
+        return (w / h) > self.t.fallen_aspect_ratio
 
-    @staticmethod
-    def _detect_instability(angles: JointAngles) -> bool:
+    def _detect_instability(self, angles: JointAngles) -> bool:
         """Trunk rotation proxy above threshold suggests rapid unexpected twist."""
-        if angles.trunk_rotation_proxy is not None and angles.trunk_rotation_proxy > 0.35:
-            return True
-        return False
+        return (
+            angles.trunk_rotation_proxy is not None
+            and angles.trunk_rotation_proxy > self.t.trunk_rotation_max
+        )
 
-    @staticmethod
-    def _detect_spine_load(angles: JointAngles) -> bool:
-        """Trunk flexion > 60° with legs mostly straight → lifting with bent back (NR-17)."""
+    def _detect_spine_load(self, angles: JointAngles) -> bool:
+        """Trunk flexion > threshold with legs mostly straight → lifting with bent back (NR-17)."""
         if angles.trunk_flexion is None:
             return False
-        if angles.trunk_flexion <= 60:
+        if angles.trunk_flexion <= self.t.trunk_flexion_deg:
             return False
         knees = [v for v in [angles.left_knee_flexion, angles.right_knee_flexion] if v is not None]
         if not knees:
             return False
         # knee_flexion angle close to 180° means leg is straight
-        return max(knees) > 150  # both knees fairly straight
+        return max(knees) > self.t.spine_load_knee_deg
 
-    @staticmethod
-    def _detect_prolonged_squat(angles: JointAngles) -> bool:
-        """Knee bend > 90° (angle < 90° in our convention) → deep squat."""
+    def _detect_prolonged_squat(self, angles: JointAngles) -> bool:
+        """Knee interior angle below threshold → deep squat."""
         knees = [v for v in [angles.left_knee_flexion, angles.right_knee_flexion] if v is not None]
         if not knees:
             return False
-        # knee_flexion is the interior angle at the knee; < 90° = deep squat
-        return min(knees) < 90
+        return min(knees) < self.t.deep_squat_knee_deg
 
-    @staticmethod
-    def _detect_elevated_arm(angles: JointAngles) -> bool:
+    def _detect_elevated_arm(self, angles: JointAngles) -> bool:
         """Upper arm above shoulder level for sustained work (NR-17 risk factor)."""
         elevations = [
             v for v in [angles.left_shoulder_elevation, angles.right_shoulder_elevation]
@@ -184,8 +195,8 @@ class PostureClassifier:
         ]
         if not elevations:
             return False
-        # shoulder_elevation is angle hip→shoulder→elbow; < 90° means arm raised above shoulder
-        return any(e < 90 for e in elevations)
+        # shoulder_elevation is angle hip→shoulder→elbow; below threshold = arm raised
+        return any(e < self.t.elevated_arm_deg for e in elevations)
 
     # ------------------------------------------------------------------
     # Hysteresis
@@ -199,16 +210,16 @@ class PostureClassifier:
     ) -> Optional[PostureState]:
         if cat == PostureCategory.NORMAL:
             # NORMAL is never "entered" through this path — leaving an alarm
-            # state goes exclusively through the EXIT_FRAMES counter in
+            # state goes exclusively through the exit_frames counter in
             # update(), keeping alarms sticky (recall priority).
             self._pending.pop(person_id, None)
             return None
 
         pending = self._pending.get(person_id)
         enter_threshold = (
-            self.ENTER_FRAMES_RISK
+            self.enter_frames_risk
             if cat == PostureCategory.IMMEDIATE_RISK
-            else self.ENTER_FRAMES
+            else self.enter_frames
         )
 
         if pending is None or pending[0] != cat:
