@@ -43,7 +43,13 @@ O sistema utiliza os **17 keypoints COCO** extraídos pelo YOLO11s-pose:
 
 ## 3. Score REBA
 
-O motor REBA calcula um score de 1 a 15 via três tabelas de lookup (Hignett & McAtamney, 2000):
+O motor REBA calcula um score de **1 a 12** via três tabelas de lookup (Hignett & McAtamney, 2000). O instrumento original chega a 15 somando scores de atividade, carga e pega — fatores **não detectáveis por visão monocular**, que são omitidos (não estimados) nesta implementação. Pela mesma razão, alguns scores parciais têm faixa reduzida em relação ao instrumento original:
+
+- **Pescoço:** 1–2 (extensão e rotação cervical não distinguíveis em 2D; coluna pescoço=3 da Tabela A inalcançável)
+- **Pernas:** 1–3 (postura bilateral assumida; apoio unilateral — score 4 — não detectável de forma confiável)
+- **Tronco:** 1–4 (extensão de tronco — score 5 — não distinguível de flexão em 2D)
+
+Essas reduções **subestimam** o risco em casos específicos e estão declaradas como limitação no relatório.
 
 ### Grupo A — Tronco, Pescoço, Pernas
 
@@ -81,7 +87,7 @@ O motor REBA calcula um score de 1 a 15 via três tabelas de lookup (Hignett & M
 | 1 | 1 | Risco desprezível — sem ação necessária |
 | 2–3 | 2 | Risco baixo — mudança pode ser necessária |
 | 4–7 | 3 | Risco médio — investigar e alterar em breve |
-| 8–15 | 4 | Risco alto — investigar e alterar imediatamente |
+| 8–12 | 4 | Risco alto — investigar e alterar imediatamente |
 
 ---
 
@@ -178,3 +184,4 @@ IDs são efêmeros (não persistem entre sessões) — conformidade LGPD.
 | Desvio de punho não detectável em 2D | Grupo B subestimado | Punho fixo em score 1 | Hand pose estimation |
 | Queda em câmera frontal pode não inverter bbox | Recall de queda comprometido | Regra de velocidade vertical na Etapa 6 | Fusão multi-sensor |
 | Oclusão por equipamentos industriais | Keypoints perdidos | Descarte de ângulo (não interpolação) | Re-ID multi-câmera |
+| Flexão de pescoço em vista de perfil | Nariz naturalmente à frente do ombro gera desvio basal de ~15–25° | Threshold de 20° calibrado para vista frontal; validar por cenário | Estimativa 3D de cabeça |

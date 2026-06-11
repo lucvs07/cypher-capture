@@ -100,7 +100,7 @@ def _neck_score(flexion: Optional[float]) -> int:
     if flexion is None:
         return 1
     # Convert to deviation from upright: 0° = perfectly upright line
-    deviation = abs(180.0 - flexion) if flexion is not None else 0.0
+    deviation = abs(180.0 - flexion)
     if deviation <= 20:
         return 1
     return 2
