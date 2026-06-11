@@ -17,7 +17,7 @@ from ultralytics import YOLO
 from ..pose.estimator import PoseEstimator
 from ..pose.angles import extract_angles
 from ..pose.reba import compute_reba
-from ..pose.classifier import PostureClassifier
+from ..pose.classifier import PostureCategory, PostureClassifier
 from ..pose.temporal import TemporalAnalyzer
 from ..zones.manager import ZoneManager
 from ..zones.detector import ZoneDetector
@@ -100,12 +100,17 @@ class UnifiedPipeline:
             zone_results = self._zone_detector.check(pose.person_id, feet)
             in_zone = bool(zone_results)
 
-            posture_state = self._classifier.update(
-                pose.person_id, angles, reba, pose.bbox, self._frame_idx, in_zone
-            )
-            self._temporal.update(
+            # Temporal metrics use the previous frame's confirmed state (one
+            # frame of lag) so the fall-risk score can feed this frame's rules.
+            prev_state = self._classifier.get_state(pose.person_id)
+            metrics = self._temporal.update(
                 pose.person_id, angles, pose.bbox,
-                is_bad_posture=posture_state.category.value != "normal",
+                is_bad_posture=prev_state.category != PostureCategory.NORMAL,
+            )
+
+            posture_state = self._classifier.update(
+                pose.person_id, angles, reba, pose.bbox, in_zone,
+                fall_risk=metrics.fall_risk_score,
             )
 
             epi_labels = epi_assoc.get(pose.person_id, [])

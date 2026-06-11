@@ -48,6 +48,10 @@ class PostureClassifier:
     # IMMEDIATE_RISK uses a lower entry threshold to maximise recall
     ENTER_FRAMES_RISK = 2
 
+    # TemporalAnalyzer.fall_risk_score (0–1) above this → IMMEDIATE_RISK.
+    # Covers falls toward/away from the camera where the bbox never widens.
+    FALL_RISK_MIN = 0.7
+
     def __init__(self, fps: float = 15.0) -> None:
         self.fps = fps
         self._states: dict[int, PostureState] = {}
@@ -60,10 +64,12 @@ class PostureClassifier:
         angles: JointAngles,
         reba: REBAScore,
         bbox: tuple,
-        frame_idx: int,
         in_critical_zone: bool = False,
+        fall_risk: float = 0.0,
     ) -> PostureState:
-        raw_cat, raw_reason = self._evaluate_rules(angles, reba, bbox, in_critical_zone)
+        raw_cat, raw_reason = self._evaluate_rules(
+            angles, reba, bbox, in_critical_zone, fall_risk
+        )
         state = self._apply_hysteresis(person_id, raw_cat, raw_reason)
 
         if person_id not in self._states:
@@ -102,13 +108,17 @@ class PostureClassifier:
         reba: REBAScore,
         bbox: tuple,
         in_critical_zone: bool,
+        fall_risk: float,
     ) -> tuple[PostureCategory, str]:
         # Priority order: IMMEDIATE_RISK > CRITICAL_ZONE > ERGONOMICALLY_INADEQUATE
 
         if self._detect_fallen(bbox):
             return PostureCategory.IMMEDIATE_RISK, "person_fallen"
 
-        if self._detect_instability(angles, bbox):
+        if fall_risk >= self.FALL_RISK_MIN:
+            return PostureCategory.IMMEDIATE_RISK, "fall_velocity"
+
+        if self._detect_instability(angles):
             return PostureCategory.IMMEDIATE_RISK, "balance_loss_risk"
 
         if in_critical_zone:
@@ -137,7 +147,7 @@ class PostureClassifier:
         return (w / h) > 1.5
 
     @staticmethod
-    def _detect_instability(angles: JointAngles, bbox: tuple) -> bool:
+    def _detect_instability(angles: JointAngles) -> bool:
         """Trunk rotation proxy above threshold suggests rapid unexpected twist."""
         if angles.trunk_rotation_proxy is not None and angles.trunk_rotation_proxy > 0.35:
             return True
