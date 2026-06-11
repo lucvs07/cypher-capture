@@ -29,7 +29,11 @@ APPROACH_BUFFER_PX = 80
 
 
 class ZoneDetector:
-    """Tests whether a person's feet are inside, approaching, or outside each zone."""
+    """Tests zone proximity for a person's feet.
+
+    Returns only INSIDE and APPROACHING results; zones the person is clearly
+    outside (beyond approach_buffer_px) are omitted from the result list.
+    """
 
     def __init__(self, manager: ZoneManager, approach_buffer_px: float = APPROACH_BUFFER_PX) -> None:
         self.manager = manager

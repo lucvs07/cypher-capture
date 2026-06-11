@@ -14,7 +14,7 @@ class PersonEvent:
     """Unified per-person event emitted each frame. Schema targets Phase 3 persistence."""
     timestamp: float = field(default_factory=time.time)
     person_id: int = 0
-    epi_status: dict[str, bool] = field(default_factory=dict)   # label → compliant
+    epi_violations: list[str] = field(default_factory=list)  # violation labels on this person (no_helmet, …)
     posture: str = "normal"
     reba_score: int = 1
     action_level: int = 1
@@ -61,9 +61,8 @@ class DecisionEngine:
         event.reba_score = reba.final_score
         event.action_level = reba.action_level
 
-        # EPI compliance map — only track labels that indicate violations
         violations = [lbl for lbl in epi_labels if lbl in self.EPI_VIOLATION_LABELS]
-        event.epi_status = {lbl: False for lbl in violations}
+        event.epi_violations = violations
 
         # Zone: report worst (inside > approaching, higher severity wins)
         if zone_results:
@@ -88,7 +87,7 @@ class DecisionEngine:
             sev = max(sev, 3)
         elif event.zone_status == "approaching":
             sev = max(sev, 1)
-        if violations:
+        if event.epi_violations:
             sev = max(sev, 2)
         if reba.action_level >= 4:
             sev = max(sev, 3)

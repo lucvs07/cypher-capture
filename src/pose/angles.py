@@ -28,7 +28,7 @@ def _angle(p1: tuple[float, float], vertex: tuple[float, float], p2: tuple[float
     v2 = np.array(p2) - np.array(vertex)
     n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
     if n1 < 1e-6 or n2 < 1e-6:
-        return 0.0
+        return 180.0  # degenerate → treat as fully extended (safe default)
     cos_a = np.clip(np.dot(v1, v2) / (n1 * n2), -1.0, 1.0)
     return float(np.degrees(np.arccos(cos_a)))
 
@@ -57,7 +57,10 @@ def extract_angles(pose: PersonPose) -> JointAngles:
     if mid_shoulder and mid_hip:
         dx = mid_shoulder[0] - mid_hip[0]
         dy = mid_shoulder[1] - mid_hip[1]  # image y grows downward
-        angles.trunk_flexion = float(np.degrees(np.arctan2(abs(dx), -dy)))
+        # abs(dy) keeps the result in [0°, 90°] even when keypoint noise
+        # accidentally places mid_shoulder below mid_hip (-dy would go negative
+        # and arctan2 would return > 90°, scoring as extreme flexion).
+        angles.trunk_flexion = float(np.degrees(np.arctan2(abs(dx), abs(dy))))
 
     # Neck: angle at mid-shoulder between nose and mid-hip (deviation from spine axis)
     nose = g("nose")
