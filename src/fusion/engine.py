@@ -24,18 +24,22 @@ class PersonEvent:
     reason: str = ""
 
 
-def _iou(a: tuple, b: tuple) -> float:
-    ax1, ay1, ax2, ay2 = a
-    bx1, by1, bx2, by2 = b
-    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
-    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+def _containment(person: tuple, epi: tuple) -> float:
+    """Fraction of the EPI box covered by the person box (0–1).
+
+    Plain IoU fails here: a 50x50 helmet fully inside a 200x500 person bbox
+    has IoU ≈ 0.025, below any usable threshold. Coverage of the smaller box
+    is the right measure for item→person assignment.
+    """
+    px1, py1, px2, py2 = person
+    ex1, ey1, ex2, ey2 = epi
+    ix1, iy1 = max(px1, ex1), max(py1, ey1)
+    ix2, iy2 = min(px2, ex2), min(py2, ey2)
     if ix2 <= ix1 or iy2 <= iy1:
         return 0.0
     inter = (ix2 - ix1) * (iy2 - iy1)
-    area_a = (ax2 - ax1) * (ay2 - ay1)
-    area_b = (bx2 - bx1) * (by2 - by1)
-    union = area_a + area_b - inter
-    return inter / union if union > 0 else 0.0
+    epi_area = (ex2 - ex1) * (ey2 - ey1)
+    return inter / epi_area if epi_area > 0 else 0.0
 
 
 class DecisionEngine:
@@ -97,19 +101,20 @@ class DecisionEngine:
         person_bboxes: dict[int, tuple],
         epi_bboxes: list[tuple],
         epi_labels: list[str],
-        iou_threshold: float = 0.1,
+        containment_threshold: float = 0.5,
     ) -> dict[int, list[str]]:
         """
-        Assign each EPI detection to the person whose bounding box overlaps it most.
-        Uses containment-sensitive IoU so small items (helmets) associate correctly.
+        Assign each EPI detection to the person whose bbox covers most of it.
+        An EPI box is associated when at least containment_threshold of its
+        area lies inside the person bbox; ties go to the highest coverage.
         """
         result: dict[int, list[str]] = {pid: [] for pid in person_bboxes}
         for epi_box, label in zip(epi_bboxes, epi_labels):
-            best_pid, best_iou = None, iou_threshold
+            best_pid, best_cov = None, containment_threshold
             for pid, p_box in person_bboxes.items():
-                iou = _iou(p_box, epi_box)
-                if iou > best_iou:
-                    best_iou = iou
+                cov = _containment(p_box, epi_box)
+                if cov > best_cov:
+                    best_cov = cov
                     best_pid = pid
             if best_pid is not None:
                 result[best_pid].append(label)
