@@ -30,7 +30,7 @@ O sistema utiliza os **17 keypoints COCO** extraídos pelo YOLO11s-pose:
 
 | Ângulo | Keypoints | Vértice | Significado ergonômico |
 |--------|-----------|---------|------------------------|
-| **Flexão de tronco** | mid_shoulder, mid_hip, mid_knee | mid_hip | Inclinação anterior da coluna. 0° = ereto, 90° = completamente fletido |
+| **Flexão de tronco** | mid_shoulder, mid_hip | — (vetor vs. vertical) | Ângulo do vetor quadril→ombro em relação à vertical da imagem. 0° = ereto (em pé ou sentado), 90° = tronco horizontal. Assume câmera sem rotação (roll ≈ 0) |
 | **Flexão de pescoço** | nose, mid_shoulder, mid_hip | mid_shoulder | Inclinação da cabeça em relação ao eixo da coluna |
 | **Elevação de ombro** (esq/dir) | hip, shoulder, elbow | shoulder | Ângulo interno hip→shoulder→elbow. 180° = braço ao longo do corpo, 90° = braço horizontal |
 | **Flexão de cotovelo** (esq/dir) | shoulder, elbow, wrist | elbow | Ângulo interno. 180° = braço estendido, 90° = cotovelo dobrado |

@@ -49,12 +49,15 @@ def extract_angles(pose: PersonPose) -> JointAngles:
 
     mid_shoulder = _midpoint(g("left_shoulder"), g("right_shoulder"))
     mid_hip = _midpoint(g("left_hip"), g("right_hip"))
-    mid_knee = _midpoint(g("left_knee"), g("right_knee"))
 
-    # Trunk flexion: angle at hip between mid-shoulder and mid-knee
-    # 0° = upright, 90° = fully bent forward
-    if mid_shoulder and mid_hip and mid_knee:
-        angles.trunk_flexion = 180.0 - _angle(mid_shoulder, mid_hip, mid_knee)
+    # Trunk flexion: angle between the torso vector (mid_hip → mid_shoulder)
+    # and the upward image vertical. 0° = upright, 90° = horizontal torso.
+    # Using the vertical (not the hip interior angle) keeps a seated person
+    # with a straight back at ~0° instead of ~90°. Assumes camera roll ≈ 0.
+    if mid_shoulder and mid_hip:
+        dx = mid_shoulder[0] - mid_hip[0]
+        dy = mid_shoulder[1] - mid_hip[1]  # image y grows downward
+        angles.trunk_flexion = float(np.degrees(np.arctan2(abs(dx), -dy)))
 
     # Neck: angle at mid-shoulder between nose and mid-hip (deviation from spine axis)
     nose = g("nose")
