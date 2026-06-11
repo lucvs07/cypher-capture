@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+import json
+import uuid
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Literal
+
+
+@dataclass
+class Zone:
+    zone_id: str
+    name: str
+    zone_type: Literal["restricted", "attention"]
+    polygon: list[tuple[float, float]]   # ordered (x, y) vertices in pixel coords
+    severity: int = 3                    # 1=low … 4=critical
+    required_ppe: list[str] = field(default_factory=list)
+
+    @staticmethod
+    def new(
+        name: str,
+        zone_type: Literal["restricted", "attention"],
+        polygon: list[tuple[float, float]],
+        severity: int = 3,
+        required_ppe: list[str] | None = None,
+    ) -> "Zone":
+        return Zone(
+            zone_id=str(uuid.uuid4())[:8],
+            name=name,
+            zone_type=zone_type,
+            polygon=polygon,
+            severity=severity,
+            required_ppe=required_ppe or [],
+        )
+
+
+class ZoneManager:
+    """Manages critical zone definitions with JSON persistence."""
+
+    def __init__(self, config_path: str = "config/zones/zones.json") -> None:
+        self._path = Path(config_path)
+        self._zones: dict[str, Zone] = {}
+        if self._path.exists():
+            self._load()
+
+    def add(self, zone: Zone) -> None:
+        self._zones[zone.zone_id] = zone
+        self._save()
+
+    def remove(self, zone_id: str) -> None:
+        self._zones.pop(zone_id, None)
+        self._save()
+
+    def get(self, zone_id: str) -> Zone | None:
+        return self._zones.get(zone_id)
+
+    def get_all(self) -> list[Zone]:
+        return list(self._zones.values())
+
+    def clear(self) -> None:
+        self._zones.clear()
+        self._save()
+
+    def _save(self) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self._path, "w") as f:
+            json.dump([asdict(z) for z in self._zones.values()], f, indent=2)
+
+    def _load(self) -> None:
+        with open(self._path) as f:
+            data = json.load(f)
+        for item in data:
+            item["polygon"] = [tuple(p) for p in item["polygon"]]
+            z = Zone(**item)
+            self._zones[z.zone_id] = z

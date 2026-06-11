@@ -1,0 +1,47 @@
+pose:
+  model: yolo11s-pose.pt          # swap to yolo11n-pose.pt for speed, yolo11m-pose.pt for accuracy
+  confidence: 0.5
+  device: cpu                     # cpu | cuda | mps
+  tracker: bytetrack.yaml
+
+thresholds:
+  keypoint_confidence_min: 0.5    # below this a keypoint is treated as missing
+
+  temporal_smoothing_frames: 5    # simple moving average for angle output
+
+  trunk_flexion:
+    ergonomic_risk_deg: 60        # NR-17: sustained forward lean > 60° is a risk factor
+    spine_load_knee_threshold: 150  # knee angle (°) considered "straight" for spine-load rule
+
+  knee_flexion:
+    deep_squat_threshold_deg: 90  # interior angle < 90° = deep squat
+
+  shoulder_elevation:
+    elevated_work_deg: 90         # interior angle < 90° = arm raised above shoulder
+
+  trunk_rotation_proxy:
+    max_normalised: 0.35          # shoulder/hip offset / bbox_height above this → instability
+
+  reba:
+    ergonomic_risk_score: 8       # final REBA score triggering ergonomic_inadequate
+    critical_score: 12            # maximum REBA score
+
+  fall_detection:
+    bbox_aspect_ratio: 1.5        # width/height > this → person detected as fallen
+    fall_risk_threshold: 0.7      # temporal fall_risk_score above this → warn
+
+classification:
+  enter_frames: 5                 # consecutive matching frames to confirm a new state
+  enter_frames_risk: 2            # faster entry for immediate_risk (recall priority)
+  exit_frames: 15                 # consecutive non-matching frames to leave a state
+  fps: 15.0
+
+zones:
+  config_path: config/zones/zones.json
+  approach_buffer_px: 80          # pixels of buffer around zone boundary for "approaching" state
+
+pipeline:
+  epi_model: models/exp.pt
+  max_latency_ms: 200             # if exceeded, EPI stride is increased automatically
+  target_fps: 15.0
+  epi_stride_max: 4               # EPI model will not skip more than this many frames
