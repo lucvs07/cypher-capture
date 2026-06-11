@@ -34,6 +34,16 @@ class ZoneDetector:
     def __init__(self, manager: ZoneManager, approach_buffer_px: float = APPROACH_BUFFER_PX) -> None:
         self.manager = manager
         self.buffer = approach_buffer_px
+        # zones are static after load; cache the ndarray per zone_id instead
+        # of rebuilding it persons × zones times per frame
+        self._poly_cache: dict[str, np.ndarray] = {}
+
+    def _polygon(self, zone: Zone) -> np.ndarray:
+        arr = self._poly_cache.get(zone.zone_id)
+        if arr is None:
+            arr = np.array(zone.polygon, dtype=np.float32)
+            self._poly_cache[zone.zone_id] = arr
+        return arr
 
     def check(
         self,
@@ -42,7 +52,7 @@ class ZoneDetector:
     ) -> list[ZoneResult]:
         results: list[ZoneResult] = []
         for zone in self.manager.get_all():
-            polygon = np.array(zone.polygon, dtype=np.float32)
+            polygon = self._polygon(zone)
 
             inside = any(
                 cv2.pointPolygonTest(polygon, (float(p[0]), float(p[1])), False) >= 0

@@ -6,11 +6,16 @@ Usage:
     python scripts/benchmark_pose.py --source <video_path|0> [--model yolo11s-pose.pt] [--frames 100]
 """
 import argparse
+import sys
 import time
+from pathlib import Path
 
-import cv2
 import numpy as np
 from ultralytics import YOLO
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.utils.video import open_capture
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,10 +32,10 @@ def main() -> None:
     args = parse_args()
     model = YOLO(args.model)
 
-    source = int(args.source) if args.source.isdigit() else args.source
-    cap = cv2.VideoCapture(source)
-    if not cap.isOpened():
-        print(f"ERROR: could not open source '{args.source}'")
+    try:
+        cap = open_capture(args.source)
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
         return
 
     latencies_ms: list[float] = []

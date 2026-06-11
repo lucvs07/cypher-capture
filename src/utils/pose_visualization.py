@@ -47,21 +47,23 @@ def draw_pose_overlay(
 ) -> np.ndarray:
     out = frame.copy()
 
-    # Semi-transparent zone fill
-    overlay = out.copy()
-    for zone in zones:
-        pts = np.array(zone.polygon, dtype=np.int32)
-        color = ZONE_COLORS.get(zone.zone_type, (0, 0, 200))
-        cv2.fillPoly(overlay, [pts], color)
-    cv2.addWeighted(overlay, 0.15, out, 0.85, 0, out)
+    if zones:
+        zone_draw = [
+            (np.array(z.polygon, dtype=np.int32),
+             ZONE_COLORS.get(z.zone_type, (0, 0, 200)),
+             z.name)
+            for z in zones
+        ]
+        # Semi-transparent zone fill (full-frame blend only when zones exist)
+        overlay = out.copy()
+        for pts, color, _ in zone_draw:
+            cv2.fillPoly(overlay, [pts], color)
+        cv2.addWeighted(overlay, 0.15, out, 0.85, 0, out)
 
-    # Zone borders and labels
-    for zone in zones:
-        pts = np.array(zone.polygon, dtype=np.int32)
-        color = ZONE_COLORS.get(zone.zone_type, (0, 0, 200))
-        cv2.polylines(out, [pts], isClosed=True, color=color, thickness=2)
-        label_pos = pts[0].tolist()
-        cv2.putText(out, zone.name, label_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+        # Zone borders and labels
+        for pts, color, name in zone_draw:
+            cv2.polylines(out, [pts], isClosed=True, color=color, thickness=2)
+            cv2.putText(out, name, pts[0].tolist(), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
     event_map: dict[int, "PersonEvent"] = {e.person_id: e for e in events}
 

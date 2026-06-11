@@ -44,6 +44,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
+from src.utils.video import open_capture
 
 
 CATEGORIES = ["normal", "ergonomically_inadequate", "immediate_risk", "critical_zone"]
@@ -128,9 +129,10 @@ def run_evaluation(args: argparse.Namespace) -> None:
     )
     pipeline = UnifiedPipeline(config)
 
-    cap = cv2.VideoCapture(args.video)
-    if not cap.isOpened():
-        print(f"ERROR: cannot open video '{args.video}'")
+    try:
+        cap = open_capture(args.video)
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
         sys.exit(1)
 
     fps_video = cap.get(cv2.CAP_PROP_FPS) or 15.0

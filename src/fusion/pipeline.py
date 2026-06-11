@@ -24,6 +24,7 @@ from ..zones.manager import ZoneManager
 from ..zones.detector import ZoneDetector, ZoneStatus
 from ..fusion.engine import DecisionEngine, PersonEvent
 from ..utils.pose_visualization import draw_pose_overlay
+from ..utils.video import open_capture
 
 
 @dataclass
@@ -169,9 +170,8 @@ class UnifiedPipeline:
 
         return annotated, events
 
-    def run_video(self, source: str, display: bool = True) -> None:
-        src = int(source) if source.isdigit() else source
-        cap = cv2.VideoCapture(src)
+    def run_video(self, source: int | str, display: bool = True) -> None:
+        cap = open_capture(source)
         try:
             while cap.isOpened():
                 ret, frame = cap.read()

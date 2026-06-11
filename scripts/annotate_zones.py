@@ -24,6 +24,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.utils.video import open_capture
 from src.zones.manager import Zone, ZoneManager
 
 ZONE_COLORS = {
@@ -72,8 +73,11 @@ def main() -> None:
     if manager.get_all():
         print(f"Loaded {len(manager.get_all())} existing zone(s) from {args.output}")
 
-    source = int(args.source) if args.source.isdigit() else args.source
-    cap = cv2.VideoCapture(source)
+    try:
+        cap = open_capture(args.source)
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+        return
     ret, frame = cap.read()
     cap.release()
     if not ret:
