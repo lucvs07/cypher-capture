@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from ..pose.estimator import PoseEstimator
+from ..pose.estimator import PersonPose, PoseEstimator
 from ..pose.angles import extract_angles
 from ..pose.reba import compute_reba
 from ..pose.classifier import PostureCategory, PostureClassifier
@@ -58,6 +58,7 @@ class UnifiedPipeline:
         self._epi_stride = 1           # EPI runs every N frames
         self._last_epi_bboxes: list[tuple] = []
         self._last_epi_labels: list[str] = []
+        self.last_poses: list[PersonPose] = []  # poses from the most recent frame
 
     def _ensure_epi_model(self) -> None:
         if self._epi_model is None:
@@ -70,6 +71,7 @@ class UnifiedPipeline:
 
         # Pose runs every frame (keypoints needed for temporal analysis)
         poses = self._pose.estimate(frame, track=True)
+        self.last_poses = poses
 
         # EPI may run at reduced frequency if latency budget is exceeded
         if self._frame_idx % self._epi_stride == 0:

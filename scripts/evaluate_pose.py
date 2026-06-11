@@ -6,8 +6,10 @@ Metrics computed:
   - PCK@0.1  : Percent Correct Keypoints at threshold = 0.1 × person_height
   - Accuracy  : per posture category and overall
   - Recall    : for immediate_risk (target ≥ 0.90)
-  - False alarm rate  : alerts per hour on known-negative footage
-  - E2E latency       : mean and p95
+  - False alarm rate  : alert episodes per hour, measured ONLY on frames
+    annotated as normal (unannotated frames are excluded — absence of a
+    label is not evidence of absence of an event)
+  - E2E latency       : mean and p95, excluding the model warm-up frame
 
 Ground-truth JSON format (list of frame annotations):
   [
@@ -45,6 +47,20 @@ from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
 
 
 CATEGORIES = ["normal", "ergonomically_inadequate", "immediate_risk", "critical_zone"]
+
+MATCH_IOU = 0.3  # min bbox IoU to match a predicted pose to a GT annotation
+
+
+def _bbox_iou(a: list, b: tuple) -> float:
+    ax1, ay1, ax2, ay2 = a
+    bx1, by1, bx2, by2 = b
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    if ix2 <= ix1 or iy2 <= iy1:
+        return 0.0
+    inter = (ix2 - ix1) * (iy2 - iy1)
+    union = (ax2 - ax1) * (ay2 - ay1) + (bx2 - bx1) * (by2 - by1) - inter
+    return inter / union if union > 0 else 0.0
 
 
 def compute_pck(
@@ -118,8 +134,6 @@ def run_evaluation(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     fps_video = cap.get(cv2.CAP_PROP_FPS) or 15.0
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    total_duration_h = total_frames / fps_video / 3600.0
 
     gt_index: dict[int, list[dict]] = defaultdict(list)
     for ann in gt_data:
@@ -131,7 +145,12 @@ def run_evaluation(args: argparse.Namespace) -> None:
     bbox_heights: list[float] = []
     pred_labels: list[str] = []
     gt_labels: list[str] = []
-    false_alarms = 0
+
+    # False alarms: episode-based (a sustained alert counts once, not once
+    # per frame), counted only on frames whose GT says everyone is normal.
+    false_alarm_episodes = 0
+    normal_frame_count = 0
+    alerting_persons: set[int] = set()
 
     frame_id = 0
     while cap.isOpened():
@@ -145,42 +164,65 @@ def run_evaluation(args: argparse.Namespace) -> None:
 
         frame_anns = gt_index.get(frame_id, [])
         event_map = {e.person_id: e for e in events}
+        poses = pipeline.last_poses
 
         for ann in frame_anns:
-            pid = ann["person_id"]
-            gt_label = ann["posture"]
-            gt_labels.append(gt_label)
+            gt_labels.append(ann["posture"])
 
-            if pid in event_map:
-                pred_labels.append(event_map[pid].posture)
+            # Match GT annotation to a predicted pose by bbox IoU (GT
+            # person_id and tracker IDs are independent numbering schemes)
+            best_pose, best_iou = None, MATCH_IOU
+            for pose in poses:
+                iou = _bbox_iou(ann["bbox"], pose.bbox)
+                if iou > best_iou:
+                    best_iou = iou
+                    best_pose = pose
+
+            if best_pose is not None:
+                pred_labels.append(
+                    event_map[best_pose.person_id].posture
+                    if best_pose.person_id in event_map else "normal"
+                )
+                # PCK sample
+                pred_kps_list.append(best_pose.keypoints.copy())
+                gt_kps_list.append(np.array(ann["keypoints"], dtype=np.float32))
+                bbox_heights.append(ann["bbox"][3] - ann["bbox"][1])
             else:
-                pred_labels.append("normal")
+                # Missed detection counts against classification too
+                pred_labels.append("normal" if ann["posture"] == "normal" else "missed")
 
-            # PCK data
-            gt_kp = np.array(ann["keypoints"], dtype=np.float32)  # (17,2)
-            bbox_h = ann["bbox"][3] - ann["bbox"][1]
-            bbox_heights.append(bbox_h)
-            gt_kps_list.append(gt_kp)
-
-        # Count false alarms: alert fired on a frame with no ground-truth risk
-        if not frame_anns and events:
+        # False-alarm accounting on annotated-normal frames only
+        if frame_anns and all(a["posture"] == "normal" for a in frame_anns):
+            normal_frame_count += 1
             for ev in events:
                 if ev.severity >= 2:
-                    false_alarms += 1
+                    if ev.person_id not in alerting_persons:
+                        false_alarm_episodes += 1
+                        alerting_persons.add(ev.person_id)
+                else:
+                    alerting_persons.discard(ev.person_id)
 
         frame_id += 1
 
     cap.release()
 
-    lats = np.array(latencies_ms) if latencies_ms else np.array([0.0])
+    # First frame includes one-time model loading; report it separately
+    warmup_ms = latencies_ms[0] if latencies_ms else 0.0
+    steady = np.array(latencies_ms[1:]) if len(latencies_ms) > 1 else np.array([0.0])
     cls_metrics = compute_classification_metrics(pred_labels, gt_labels)
-    false_alarm_rate = false_alarms / total_duration_h if total_duration_h > 0 else 0.0
+    pck = compute_pck(pred_kps_list, gt_kps_list, bbox_heights)
+
+    normal_hours = normal_frame_count / fps_video / 3600.0
+    false_alarm_rate = false_alarm_episodes / normal_hours if normal_hours > 0 else float("nan")
 
     print(f"\n{'='*56}")
     print(f"  Frames processed : {frame_id}")
-    print(f"  Latency ms       : mean={lats.mean():.1f}  p95={np.percentile(lats,95):.1f}")
-    print(f"  Latency target   : {'PASS ✓' if np.percentile(lats,95)<=200 else 'FAIL ✗'} (≤200ms)")
+    print(f"  Warm-up frame    : {warmup_ms:.0f} ms (excluded from stats)")
+    print(f"  Latency ms       : mean={steady.mean():.1f}  p95={np.percentile(steady,95):.1f}")
+    print(f"  Latency target   : {'PASS ✓' if np.percentile(steady,95)<=200 else 'FAIL ✗'} (≤200ms)")
     print()
+    print(f"  PCK@0.1          : {pck:.3f} on {len(pred_kps_list)} matched persons "
+          f"({'PASS ✓' if pck >= 0.80 else 'FAIL ✗'}, target ≥0.80)")
     print(f"  Overall accuracy : {cls_metrics['accuracy']:.3f}  (target ≥0.85)")
     print()
     for cat in CATEGORIES:
@@ -190,7 +232,12 @@ def run_evaluation(args: argparse.Namespace) -> None:
             flag = "  ← target recall ≥0.90 " + ("✓" if m["recall"] >= 0.90 else "✗")
         print(f"  {cat:<30} P={m['precision']:.3f}  R={m['recall']:.3f}  F1={m['f1']:.3f}{flag}")
     print()
-    print(f"  False alarm rate : {false_alarm_rate:.1f} alerts/hour  (target → 0)")
+    if normal_hours > 0:
+        print(f"  False alarms     : {false_alarm_episodes} episode(s) in "
+              f"{normal_frame_count} annotated-normal frames "
+              f"(~{false_alarm_rate:.1f}/h, target → 0)")
+    else:
+        print("  False alarms     : n/a — no frames annotated as normal")
     print(f"{'='*56}\n")
 
 
