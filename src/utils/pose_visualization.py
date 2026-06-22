@@ -96,6 +96,8 @@ def draw_pose_overlay(
             ]
             if ev.zone_status != "outside" and ev.zone_name:
                 parts.append(ev.zone_name[:10])
+            if ev.epi_present:
+                parts.append("ppe:" + ",".join(ev.epi_present))
             label = "  ".join(parts)
         else:
             label = f"#{pose.person_id}"

@@ -116,10 +116,11 @@ def main() -> None:
             # Event sink: surface anything at/above the severity threshold
             for ev in events:
                 if ev.severity >= args.min_severity:
+                    present = ",".join(ev.epi_present) or "-"
                     viol = ",".join(ev.epi_violations) or "-"
                     print(f"\n[EVENT] f{frame_idx} id#{ev.person_id} sev={ev.severity} "
                           f"posture={ev.posture} reba={ev.reba_score}(AL{ev.action_level}) "
-                          f"zone={ev.zone_status}/{ev.zone_name or '-'} epi={viol} :: {ev.reason}")
+                          f"zone={ev.zone_status}/{ev.zone_name or '-'} ppe=[{present}] viol={viol} :: {ev.reason}")
 
             # Burn a compact HUD onto the saved/displayed frame too
             cv2.putText(annotated, f"{dt_ms:.0f}ms  {fps:.1f}FPS  stride={pipeline._epi_stride}",

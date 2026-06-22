@@ -15,6 +15,7 @@ class PersonEvent:
     timestamp: float = field(default_factory=time.time)
     person_id: int = 0
     epi_violations: list[str] = field(default_factory=list)  # violation labels on this person (no_helmet, …)
+    epi_present: list[str] = field(default_factory=list)      # PPE detected on this person (HELMET, VEST, …)
     posture: str = "normal"
     reba_score: int = 1
     action_level: int = 1
@@ -63,6 +64,13 @@ class DecisionEngine:
 
         violations = [lbl for lbl in epi_labels if lbl in self.EPI_VIOLATION_LABELS]
         event.epi_violations = violations
+        # PPE actually detected on the person (presence). "Person" is the EPI
+        # model's own person class, not equipment, so it is excluded. Deduped,
+        # order preserved.
+        event.epi_present = list(dict.fromkeys(
+            lbl for lbl in epi_labels
+            if lbl not in self.EPI_VIOLATION_LABELS and lbl != "Person"
+        ))
 
         # Zone: report worst (inside > approaching, higher severity wins)
         worst = None
