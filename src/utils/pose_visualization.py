@@ -39,6 +39,14 @@ ZONE_COLORS = {
     "attention": (0, 140, 255),
 }
 
+# Short, full-word posture labels (avoids truncating the category name)
+POSTURE_ABBR = {
+    "normal": "OK",
+    "ergonomically_inadequate": "ERGO",
+    "immediate_risk": "RISK",
+    "critical_zone": "ZONE",
+}
+
 
 def draw_pose_overlay(
     frame: np.ndarray,
@@ -90,10 +98,13 @@ def draw_pose_overlay(
         # Info label above bbox
         x1, y1 = int(pose.bbox[0]), int(pose.bbox[1])
         if ev:
+            posture_txt = POSTURE_ABBR.get(ev.posture, ev.posture)
+            if ev.reason:
+                posture_txt += f"({ev.reason})"
             parts = [
                 f"#{ev.person_id}",
                 f"REBA:{ev.reba_score}",
-                ev.posture[:8],
+                posture_txt,
             ]
             if ev.zone_status != "outside" and ev.zone_name:
                 parts.append(ev.zone_name[:10])
