@@ -65,6 +65,7 @@ class DecisionEngine:
         event.epi_violations = violations
 
         # Zone: report worst (inside > approaching, higher severity wins)
+        worst = None
         if zone_results:
             worst = max(
                 zone_results,
@@ -91,6 +92,18 @@ class DecisionEngine:
             sev = max(sev, 2)
         if reba.action_level >= 4:
             sev = max(sev, 3)
+
+        # Taxonomy §4.2: being in/near a zone while missing a PPE the zone
+        # requires escalates severity by +1 (capped at 4). A required item is
+        # "missing" when the matching violation label (e.g. helmet → no_helmet)
+        # was associated to this person.
+        if worst is not None and worst.required_ppe and event.epi_violations:
+            missing = [
+                ppe for ppe in worst.required_ppe
+                if f"no_{ppe}" in event.epi_violations
+            ]
+            if missing:
+                sev = min(sev + 1, 4)
 
         event.severity = sev
         return event

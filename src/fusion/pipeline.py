@@ -93,6 +93,7 @@ class UnifiedPipeline:
         self._last_epi_bboxes: list[tuple] = []
         self._last_epi_labels: list[str] = []
         self.last_poses: list[PersonPose] = []  # poses from the most recent frame
+        self.last_timings: dict[str, float] = {}  # per-stage latency of the last frame (ms)
 
     def _ensure_epi_model(self) -> None:
         if self._epi_model is None:
@@ -104,11 +105,16 @@ class UnifiedPipeline:
         self._ensure_epi_model()
 
         # Pose runs every frame (keypoints needed for temporal analysis)
+        t_pose = time.perf_counter()
         poses = self._pose.estimate(frame, track=True)
         self.last_poses = poses
+        pose_ms = (time.perf_counter() - t_pose) * 1000
 
         # EPI may run at reduced frequency if latency budget is exceeded
-        if self._frame_idx % self._epi_stride == 0:
+        epi_ran = self._frame_idx % self._epi_stride == 0
+        epi_ms = 0.0
+        if epi_ran:
+            t_epi = time.perf_counter()
             assert self._epi_model is not None
             epi_results = self._epi_model(
                 frame, conf=self.config.conf_epi, device=self.config.device, verbose=False
@@ -121,7 +127,9 @@ class UnifiedPipeline:
                     labels.append(r.names[int(cls_id)])
             self._last_epi_bboxes = bboxes
             self._last_epi_labels = labels
+            epi_ms = (time.perf_counter() - t_epi) * 1000
 
+        t_analysis = time.perf_counter()
         person_bboxes = {p.person_id: p.bbox for p in poses}
         epi_assoc = self._decision.associate_epis(
             person_bboxes, self._last_epi_bboxes, self._last_epi_labels
@@ -157,10 +165,23 @@ class UnifiedPipeline:
                 pose.person_id, posture_state, reba, zone_results, epi_labels
             )
             events.append(event)
+        analysis_ms = (time.perf_counter() - t_analysis) * 1000
 
+        t_overlay = time.perf_counter()
         annotated = draw_pose_overlay(frame, poses, events, self._zones.get_all())
+        overlay_ms = (time.perf_counter() - t_overlay) * 1000
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
+        # Per-stage timings for the CLI HUD / latency report (Day-1 instrumentation)
+        self.last_timings = {
+            "pose_ms": pose_ms,
+            "epi_ms": epi_ms,
+            "epi_ran": epi_ran,
+            "analysis_ms": analysis_ms,
+            "overlay_ms": overlay_ms,
+            "total_ms": elapsed_ms,
+        }
+
         if elapsed_ms > self.config.max_latency_ms and self._epi_stride < self.config.epi_stride_max:
             self._epi_stride += 1
         elif elapsed_ms < self.config.max_latency_ms * 0.7 and self._epi_stride > 1:
