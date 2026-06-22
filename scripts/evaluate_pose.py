@@ -126,6 +126,7 @@ def run_evaluation(args: argparse.Namespace) -> None:
         pose_model_path=args.pose_model,
         device=args.device,
         conf_pose=0.5,
+        zones_config=args.zones,
     )
     pipeline = UnifiedPipeline(config)
 
@@ -249,6 +250,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--video", required=True)
     p.add_argument("--pose-model", default="yolo11s-pose.pt")
     p.add_argument("--device", default="cpu")
+    p.add_argument("--zones", default="config/zones/zones.json",
+                   help="zones JSON (needed to score critical_zone scenarios)")
     return p.parse_args()
 
 

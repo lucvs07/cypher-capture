@@ -1,0 +1,10 @@
+[
+  {
+    "zone_id": "demo0001",
+    "name": "Area Restrita",
+    "zone_type": "restricted",
+    "polygon": [[700, 300], [1180, 300], [1180, 680], [700, 680]],
+    "severity": 4,
+    "required_ppe": ["helmet", "boots"]
+  }
+]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 import cv2
@@ -23,6 +23,7 @@ class ZoneResult:
     status: ZoneStatus
     distance_px: float
     severity: int
+    required_ppe: list[str] = field(default_factory=list)
 
 
 APPROACH_BUFFER_PX = 80
@@ -71,6 +72,7 @@ class ZoneDetector:
                     status=ZoneStatus.INSIDE,
                     distance_px=0.0,
                     severity=zone.severity,
+                    required_ppe=zone.required_ppe,
                 ))
                 continue
 
@@ -83,6 +85,7 @@ class ZoneDetector:
                     status=ZoneStatus.APPROACHING,
                     distance_px=min_dist,
                     severity=zone.severity,
+                    required_ppe=zone.required_ppe,
                 ))
 
         return results
