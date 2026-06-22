@@ -29,6 +29,14 @@ models/*.onnx
 models/*.ncnn
 !models/.gitkeep
 
+# Pose weights auto-downloaded by Ultralytics into the project root
+/yolo11*-pose.pt
+/yolo*.pt
+
+# Local test / validation media (keep the placeholder, ignore content)
+data/validation/*
+!data/validation/.gitkeep
+
 # Training artifacts — keep the placeholder, ignore content
 outputs/runs/*
 !outputs/runs/.gitkeep
