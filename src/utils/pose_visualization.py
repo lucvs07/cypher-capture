@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ..zones.manager import Zone
 
 from ..pose.estimator import COCO_KEYPOINTS, KP, PersonPose
+from .visualization import class_color
 
 # Skeleton connections as (keypoint_name_a, keypoint_name_b) pairs
 SKELETON = [
@@ -109,3 +110,24 @@ def draw_pose_overlay(
         cv2.putText(out, label, (label_x, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
 
     return out
+
+
+def draw_epi_boxes(
+    frame: np.ndarray,
+    bboxes: list[tuple],
+    labels: list[str],
+) -> np.ndarray:
+    """Dev overlay: draw the raw EPI detection boxes from the PPE model on top
+    of the pose overlay (gated behind run_pipeline's --show-epi flag).
+
+    Drawn in place with thin rectangles so they read as a debug layer distinct
+    from the thicker, severity-coloured skeletons. Colours match Phase 1
+    (class_color): green = PPE present, red = violation, amber = Person.
+    """
+    for box, label in zip(bboxes, labels):
+        x1, y1, x2, y2 = (int(v) for v in box)
+        color = class_color(label)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
+        cv2.putText(frame, label, (x1 + 2, max(y1 - 4, 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
+    return frame

@@ -33,6 +33,7 @@ import cv2
 import numpy as np
 
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
+from src.utils.pose_visualization import draw_epi_boxes
 from src.utils.video import open_capture
 
 
@@ -52,6 +53,8 @@ def parse_args() -> argparse.Namespace:
                    help="print events at/above this severity (0-4, default 2)")
     p.add_argument("--max-frames", type=int, default=0,
                    help="stop after N frames (0 = until source ends / 'q')")
+    p.add_argument("--show-epi", action="store_true",
+                   help="dev: draw the raw EPI detection boxes from the PPE model")
     return p.parse_args()
 
 
@@ -98,6 +101,11 @@ def main() -> None:
             t0 = time.perf_counter()
             annotated, events = pipeline.process_frame(frame)
             dt_ms = (time.perf_counter() - t0) * 1000
+
+            if args.show_epi:
+                annotated = draw_epi_boxes(
+                    annotated, pipeline._last_epi_bboxes, pipeline._last_epi_labels
+                )
 
             roll.append(dt_ms)
             all_lat.append(dt_ms)
