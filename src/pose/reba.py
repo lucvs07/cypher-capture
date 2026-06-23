@@ -28,15 +28,18 @@ _TABLE_A = [
     [[4, 6, 7, 8], [6, 7, 8, 9], [7, 8, 9, 9]],   # trunk=5
 ]
 
-# Table B: [upper_arm_score-1][lower_arm_score-1][wrist_score-1] → score (1–8)
+# Table B: [upper_arm_score-1][lower_arm_score-1][wrist_score-1] → score (1–9)
 # upper_arm: 1–6, lower_arm: 1–2, wrist: 1–3
+# Values transcribed from the canonical Hignett & McAtamney (2000) worksheet.
+# (The lower-arm-2 block and the upper-arm-5 row were previously under-scored,
+#  which depressed REBA on overhead/extended-elbow reaching — fixed.)
 _TABLE_B = [
     [[1, 2, 2], [1, 2, 3]],   # upper_arm=1
     [[1, 2, 3], [2, 3, 4]],   # upper_arm=2
-    [[3, 4, 5], [3, 4, 5]],   # upper_arm=3
-    [[4, 5, 5], [4, 5, 5]],   # upper_arm=4
-    [[6, 7, 7], [6, 7, 7]],   # upper_arm=5
-    [[7, 8, 8], [7, 8, 8]],   # upper_arm=6
+    [[3, 4, 5], [4, 5, 5]],   # upper_arm=3
+    [[4, 5, 5], [5, 6, 7]],   # upper_arm=4
+    [[6, 7, 8], [7, 8, 8]],   # upper_arm=5
+    [[7, 8, 8], [8, 9, 9]],   # upper_arm=6
 ]
 
 # Table C: [score_a-1][score_b-1] → final_score (1–12)
