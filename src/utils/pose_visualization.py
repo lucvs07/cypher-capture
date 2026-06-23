@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ..zones.manager import Zone
 
 from ..pose.estimator import COCO_KEYPOINTS, KP, PersonPose
+from .visualization import class_color
 
 # Skeleton connections as (keypoint_name_a, keypoint_name_b) pairs
 SKELETON = [
@@ -36,6 +37,14 @@ SEVERITY_COLOR: dict[int, tuple[int, int, int]] = {
 ZONE_COLORS = {
     "restricted": (0, 0, 200),
     "attention": (0, 140, 255),
+}
+
+# Short, full-word posture labels (avoids truncating the category name)
+POSTURE_ABBR = {
+    "normal": "OK",
+    "ergonomically_inadequate": "ERGO",
+    "immediate_risk": "RISK",
+    "critical_zone": "ZONE",
 }
 
 
@@ -89,13 +98,18 @@ def draw_pose_overlay(
         # Info label above bbox
         x1, y1 = int(pose.bbox[0]), int(pose.bbox[1])
         if ev:
+            posture_txt = POSTURE_ABBR.get(ev.posture, ev.posture)
+            if ev.reason:
+                posture_txt += f"({ev.reason})"
             parts = [
                 f"#{ev.person_id}",
                 f"REBA:{ev.reba_score}",
-                ev.posture[:8],
+                posture_txt,
             ]
             if ev.zone_status != "outside" and ev.zone_name:
                 parts.append(ev.zone_name[:10])
+            if ev.epi_present:
+                parts.append("ppe:" + ",".join(ev.epi_present))
             label = "  ".join(parts)
         else:
             label = f"#{pose.person_id}"
@@ -107,3 +121,24 @@ def draw_pose_overlay(
         cv2.putText(out, label, (label_x, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1)
 
     return out
+
+
+def draw_epi_boxes(
+    frame: np.ndarray,
+    bboxes: list[tuple],
+    labels: list[str],
+) -> np.ndarray:
+    """Dev overlay: draw the raw EPI detection boxes from the PPE model on top
+    of the pose overlay (gated behind run_pipeline's --show-epi flag).
+
+    Drawn in place with thin rectangles so they read as a debug layer distinct
+    from the thicker, severity-coloured skeletons. Colours match Phase 1
+    (class_color): green = PPE present, red = violation, amber = Person.
+    """
+    for box, label in zip(bboxes, labels):
+        x1, y1, x2, y2 = (int(v) for v in box)
+        color = class_color(label)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
+        cv2.putText(frame, label, (x1 + 2, max(y1 - 4, 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
+    return frame

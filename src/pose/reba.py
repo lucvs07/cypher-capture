@@ -123,21 +123,21 @@ def _legs_score(left_knee: Optional[float], right_knee: Optional[float]) -> int:
 
 def _upper_arm_score(left_elev: Optional[float], right_elev: Optional[float]) -> int:
     """
-    shoulder_elevation = angle hip→shoulder→elbow.
-    180° ≈ arm hanging, ~90° ≈ arm horizontal, ~0° ≈ arm overhead.
-    REBA scores deviation from vertical (0° from hang = 0° deviation).
+    shoulder_elevation = angle hip→shoulder→elbow: ~0° arm hanging at the side
+    (neutral), ~90° horizontal, ~180° overhead. REBA scores the elevation away
+    from the neutral hanging position, so the score rises with the angle itself.
     """
     elevations = [e for e in [left_elev, right_elev] if e is not None]
     if not elevations:
         return 1
-    worst_deviation = max(abs(180.0 - e) for e in elevations)
-    if worst_deviation <= 20:
+    worst = max(elevations)
+    if worst <= 20:
         return 1
-    if worst_deviation <= 45:
+    if worst <= 45:
         return 2
-    if worst_deviation <= 90:
+    if worst <= 90:
         return 3
-    if worst_deviation <= 110:
+    if worst <= 110:
         return 4
     return 5
 

@@ -33,6 +33,7 @@ import cv2
 import numpy as np
 
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
+from src.utils.pose_visualization import draw_epi_boxes
 from src.utils.video import open_capture
 
 
@@ -52,6 +53,8 @@ def parse_args() -> argparse.Namespace:
                    help="print events at/above this severity (0-4, default 2)")
     p.add_argument("--max-frames", type=int, default=0,
                    help="stop after N frames (0 = until source ends / 'q')")
+    p.add_argument("--show-epi", action="store_true",
+                   help="dev: draw the raw EPI detection boxes from the PPE model")
     return p.parse_args()
 
 
@@ -99,6 +102,11 @@ def main() -> None:
             annotated, events = pipeline.process_frame(frame)
             dt_ms = (time.perf_counter() - t0) * 1000
 
+            if args.show_epi:
+                annotated = draw_epi_boxes(
+                    annotated, pipeline._last_epi_bboxes, pipeline._last_epi_labels
+                )
+
             roll.append(dt_ms)
             all_lat.append(dt_ms)
             frame_idx += 1
@@ -116,10 +124,11 @@ def main() -> None:
             # Event sink: surface anything at/above the severity threshold
             for ev in events:
                 if ev.severity >= args.min_severity:
+                    present = ",".join(ev.epi_present) or "-"
                     viol = ",".join(ev.epi_violations) or "-"
                     print(f"\n[EVENT] f{frame_idx} id#{ev.person_id} sev={ev.severity} "
                           f"posture={ev.posture} reba={ev.reba_score}(AL{ev.action_level}) "
-                          f"zone={ev.zone_status}/{ev.zone_name or '-'} epi={viol} :: {ev.reason}")
+                          f"zone={ev.zone_status}/{ev.zone_name or '-'} ppe=[{present}] viol={viol} :: {ev.reason}")
 
             # Burn a compact HUD onto the saved/displayed frame too
             cv2.putText(annotated, f"{dt_ms:.0f}ms  {fps:.1f}FPS  stride={pipeline._epi_stride}",

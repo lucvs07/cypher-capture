@@ -32,7 +32,7 @@ O sistema utiliza os **17 keypoints COCO** extraídos pelo YOLO11s-pose:
 |--------|-----------|---------|------------------------|
 | **Flexão de tronco** | mid_shoulder, mid_hip | — (vetor vs. vertical) | Ângulo do vetor quadril→ombro em relação à vertical da imagem. 0° = ereto (em pé ou sentado), 90° = tronco horizontal. Assume câmera sem rotação (roll ≈ 0) |
 | **Flexão de pescoço** | nose, mid_shoulder, mid_hip | mid_shoulder | Inclinação da cabeça em relação ao eixo da coluna |
-| **Elevação de ombro** (esq/dir) | hip, shoulder, elbow | shoulder | Ângulo interno hip→shoulder→elbow. 180° = braço ao longo do corpo, 90° = braço horizontal |
+| **Elevação de ombro** (esq/dir) | hip, shoulder, elbow | shoulder | Ângulo interno hip→shoulder→elbow. ~0° = braço ao longo do corpo, ~90° = braço horizontal, ~180° = braço acima da cabeça |
 | **Flexão de cotovelo** (esq/dir) | shoulder, elbow, wrist | elbow | Ângulo interno. 180° = braço estendido, 90° = cotovelo dobrado |
 | **Flexão de joelho** (esq/dir) | hip, knee, ankle | knee | Ângulo interno. 180° = perna reta, 90° = agachamento profundo |
 | **Rotação de tronco (proxy)** | mid_shoulder, mid_hip | — | Offset horizontal normalizado entre ombros e quadris ÷ altura da bbox |
@@ -113,7 +113,7 @@ Essas reduções **subestimam** o risco em casos específicos e estão declarada
 - **Keypoints:** left_hip, left_knee, left_ankle, right_hip, right_knee, right_ankle
 
 #### Regra 2.3 — Trabalho com braços elevados (`elevated_arm_work`)
-- **Condição:** `shoulder_elevation_L < 90°` **OU** `shoulder_elevation_R < 90°`
+- **Condição:** `shoulder_elevation_L > 90°` **OU** `shoulder_elevation_R > 90°` (braço acima da horizontal)
 - **Justificativa:** braço acima da linha dos ombros por tempo prolongado causa fadiga muscular e lesão por esforço repetitivo (NR-17 §17.6.1)
 - **Keypoints:** left_hip, left_shoulder, left_elbow (idem para lado direito)
 

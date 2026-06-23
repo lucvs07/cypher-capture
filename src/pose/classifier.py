@@ -31,7 +31,7 @@ class ClassifierThresholds:
     trunk_flexion_deg: float = 60.0      # forward lean beyond this = spine load risk
     spine_load_knee_deg: float = 150.0   # knee angle above this counts as "straight leg"
     deep_squat_knee_deg: float = 90.0    # knee interior angle below this = deep squat
-    elevated_arm_deg: float = 90.0       # shoulder interior angle below this = arm raised
+    elevated_arm_deg: float = 90.0       # shoulder interior angle above this = arm raised past horizontal
     trunk_rotation_max: float = 0.35     # normalised shoulder/hip offset above this = instability
     fallen_aspect_ratio: float = 1.5     # bbox w/h above this = person horizontal
     reba_risk_score: int = 8             # REBA final score at/above this = ergonomic risk
@@ -195,8 +195,10 @@ class PostureClassifier:
         ]
         if not elevations:
             return False
-        # shoulder_elevation is angle hip→shoulder→elbow; below threshold = arm raised
-        return any(e < self.t.elevated_arm_deg for e in elevations)
+        # shoulder_elevation = angle hip→shoulder→elbow: ~0° arm hanging at the
+        # side, ~90° horizontal, ~180° overhead. An arm raised past (roughly)
+        # the shoulder line means the angle is ABOVE the threshold.
+        return any(e > self.t.elevated_arm_deg for e in elevations)
 
     # ------------------------------------------------------------------
     # Hysteresis

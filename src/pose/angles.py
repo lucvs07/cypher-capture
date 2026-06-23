@@ -68,7 +68,7 @@ def extract_angles(pose: PersonPose) -> JointAngles:
         angles.neck_flexion = _angle(nose, mid_shoulder, mid_hip)
 
     # Shoulder elevation: angle at shoulder formed by hip→shoulder→elbow
-    # 180° = arm hanging, ~90° = arm horizontal, ~0° = arm overhead
+    # ~0° = arm hanging at side, ~90° = arm horizontal, ~180° = arm overhead
     for side in ("left", "right"):
         hip = g(f"{side}_hip")
         shoulder = g(f"{side}_shoulder")
