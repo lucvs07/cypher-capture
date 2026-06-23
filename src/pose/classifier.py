@@ -33,9 +33,16 @@ class ClassifierThresholds:
     deep_squat_knee_deg: float = 90.0    # knee interior angle below this = deep squat
     elevated_arm_deg: float = 90.0       # shoulder interior angle above this = arm raised past horizontal
     trunk_rotation_max: float = 0.35     # normalised shoulder/hip offset above this = instability
-    fallen_aspect_ratio: float = 1.5     # bbox w/h above this = person horizontal
+    fallen_aspect_ratio: float = 1.3     # bbox w/h above this = person horizontal
     reba_risk_score: int = 8             # REBA final score at/above this = ergonomic risk
-    fall_risk_min: float = 0.7           # TemporalAnalyzer fall_risk_score threshold
+    fall_risk_min: float = 0.85          # TemporalAnalyzer fall_risk_score threshold
+                                         # (raised 0.7->0.85: the velocity signal is noisy and spikes
+                                         #  during fast bends/squats; the velocity-independent cues
+                                         #  below now carry recall, so this can be stricter)
+    # Velocity-independent fallen cues (sustain the "on the ground" alarm even
+    # when the person has stopped moving and the bbox is not wide):
+    fallen_trunk_deg: float = 65.0       # trunk flexion (from vertical) above this = torso horizontal
+    fallen_vertical_extent: float = 0.4  # vertical_extent (nose→lowest foot)/h BELOW this = body not upright
 
 
 @dataclass
@@ -127,7 +134,7 @@ class PostureClassifier:
     ) -> tuple[PostureCategory, str]:
         # Priority order: IMMEDIATE_RISK > CRITICAL_ZONE > ERGONOMICALLY_INADEQUATE
 
-        if self._detect_fallen(bbox):
+        if self._detect_fallen(bbox, angles):
             return PostureCategory.IMMEDIATE_RISK, "person_fallen"
 
         # Covers falls toward/away from the camera where the bbox never widens
@@ -154,12 +161,32 @@ class PostureClassifier:
 
         return PostureCategory.NORMAL, ""
 
-    def _detect_fallen(self, bbox: tuple) -> bool:
-        """Bbox significantly wider than tall → person horizontal (fallen)."""
+    def _detect_fallen(self, bbox: tuple, angles: JointAngles) -> bool:
+        """Person on the ground / horizontal.
+
+        OR of complementary cues so different fall geometries are all caught
+        (recall priority). Each cue covers a case the others miss:
+          - bbox aspect: clear side-on lying (whole body wide).
+          - trunk flexion ≈ horizontal: torso lying, seen from the side.
+          - collapsed vertical extent: the nose→lowest-foot span shrinks when
+            the body is horizontal/inverted, even prone toward the camera where
+            the bbox never widens and there is no velocity. A forward bend keeps
+            the feet planted far below the head, so its extent stays large —
+            that is what stops a toe-touch from reading as a fall.
+        The last two are velocity-independent, so a person who has fallen and
+        gone still keeps the alarm asserted (combined with the sticky exit
+        hysteresis) instead of decaying back to NORMAL.
+        """
         x1, y1, x2, y2 = bbox
         w = max(x2 - x1, 1.0)
         h = max(y2 - y1, 1.0)
-        return (w / h) > self.t.fallen_aspect_ratio
+        if (w / h) > self.t.fallen_aspect_ratio:
+            return True
+        if angles.trunk_flexion is not None and angles.trunk_flexion > self.t.fallen_trunk_deg:
+            return True
+        if angles.vertical_extent is not None and angles.vertical_extent < self.t.fallen_vertical_extent:
+            return True
+        return False
 
     def _detect_instability(self, angles: JointAngles) -> bool:
         """Trunk rotation proxy above threshold suggests rapid unexpected twist."""

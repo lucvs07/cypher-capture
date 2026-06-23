@@ -20,6 +20,13 @@ class JointAngles:
     left_knee_flexion: Optional[float] = None       # angle hip→knee→ankle
     right_knee_flexion: Optional[float] = None
     trunk_rotation_proxy: Optional[float] = None    # shoulder/hip horizontal offset, normalised by height
+    # Fallen-posture cue (velocity-independent; sustains the "person on the
+    # ground" state). vertical_extent = (lowest_foot_y - nose_y)/bbox_height:
+    # large when upright (feet far below the head), ~0 when lying flat, negative
+    # when inverted. A forward bend keeps the feet planted low, so it stays
+    # large — that's what separates a toe-touch from a real fall.
+    vertical_extent: Optional[float] = None
+    hip_center: Optional[tuple] = None              # mid-hip (x, y) px — stable CoM for fall velocity
 
 
 def _angle(p1: tuple[float, float], vertex: tuple[float, float], p2: tuple[float, float]) -> float:
@@ -96,5 +103,22 @@ def extract_angles(pose: PersonPose) -> JointAngles:
     # Non-zero means asymmetric shoulder/hip alignment (2D approximation of axial rotation)
     if mid_shoulder and mid_hip:
         angles.trunk_rotation_proxy = abs(mid_shoulder[0] - mid_hip[0]) / pose.bbox_height
+
+    # Stable centre-of-mass for fall velocity: the hip centre does NOT move when
+    # the arms are raised/lowered (the bbox centre does), so using it kills the
+    # arm-articulation false positives in TemporalAnalyzer.fall_risk_score.
+    angles.hip_center = mid_hip or mid_shoulder
+
+    # Vertical extent: distance from the nose down to the lowest visible lower-
+    # body point (ankle, else knee, else hip), normalised by bbox height. Image
+    # y grows downward, so upright = large positive; lying flat ≈ 0; inverted < 0.
+    lower_pts = [
+        g(n) for n in ("left_ankle", "right_ankle", "left_knee", "right_knee",
+                       "left_hip", "right_hip")
+    ]
+    lower_pts = [p for p in lower_pts if p is not None]
+    if nose and lower_pts:
+        lowest_y = max(p[1] for p in lower_pts)
+        angles.vertical_extent = (lowest_y - nose[1]) / pose.bbox_height
 
     return angles

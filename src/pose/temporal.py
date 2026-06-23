@@ -43,8 +43,16 @@ class TemporalAnalyzer:
         bbox: tuple,
         is_bad_posture: bool,
     ) -> TemporalMetrics:
-        x1, y1, x2, y2 = bbox
-        com = ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
+        # Centre of mass for velocity/fall-risk: prefer the hip centre (stable
+        # under arm articulation) and fall back to the bbox centre only when the
+        # hips are not visible. Using the bbox centre directly made raising or
+        # lowering the arms — which resizes the bbox — read as vertical motion
+        # and fire spurious fall_velocity alarms.
+        if angles.hip_center is not None:
+            com = angles.hip_center
+        else:
+            x1, y1, x2, y2 = bbox
+            com = ((x1 + x2) / 2.0, (y1 + y2) / 2.0)
         self._com[person_id].append(com)
         # Skip occluded frames entirely — recording 0.0 for an undetermined
         # angle would inject a square-wave artifact into the autocorrelation.
