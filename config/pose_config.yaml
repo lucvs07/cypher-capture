@@ -16,7 +16,9 @@ pipeline:
 classifier:
   enter_frames: 5                    # consecutive matching frames to confirm a new state
   enter_frames_risk: 2               # faster entry for immediate_risk (recall priority)
-  exit_frames: 15                    # consecutive normal frames to leave an alarm state
+  exit_frames: 45                    # consecutive normal frames to leave an alarm state
+                                     # (raised 15->45: holds the immediate_risk alarm through the
+                                     #  "fallen and still" period; lifted cenario2 recall 0.59->0.99)
 
 thresholds:
   trunk_flexion_deg: 60.0            # NR-17: sustained forward lean beyond this is a risk factor
@@ -24,9 +26,18 @@ thresholds:
   deep_squat_knee_deg: 90.0          # knee interior angle below this = deep squat
   elevated_arm_deg: 90.0             # shoulder interior angle below this = arm raised above shoulder
   trunk_rotation_max: 0.35           # shoulder/hip offset / bbox_height above this = instability
-  fallen_aspect_ratio: 1.5           # bbox width/height above this = person detected as fallen
+  fallen_aspect_ratio: 1.3           # bbox width/height above this = person horizontal (side-on lying)
+                                     # (restored to a safe 1.3: deep squats no longer trip it; the
+                                     #  velocity-independent cues below now carry the sustained-fall recall)
   reba_risk_score: 8                 # REBA final score triggering ergonomically_inadequate
-  fall_risk_min: 0.7                 # temporal fall_risk_score above this = immediate_risk
+  fall_risk_min: 0.85                # temporal fall_risk_score above this = immediate_risk
+                                     # (0.7->0.85: velocity is noisy on fast bends/squats; the cues
+                                     #  below carry sustained-fall recall, so velocity can be stricter)
+  # Velocity-independent fallen cues — keep the immediate_risk alarm asserted while
+  # the person is down and still (the case bbox-aspect + velocity both miss):
+  fallen_trunk_deg: 65.0             # trunk flexion from vertical above this = torso horizontal
+  fallen_head_hip_offset: 0.0        # (nose_y - hip_y)/bbox_h above this = head at/below hip level
+  fallen_body_aspect: 1.1            # torso+leg keypoint horizontal/vertical span above this = lying down
 
 zones:
   approach_buffer_px: 80.0           # buffer around zone boundary for the "approaching" state

@@ -122,12 +122,17 @@ def run_evaluation(args: argparse.Namespace) -> None:
 
     print(f"Loaded {len(gt_data)} ground-truth annotations from {gt_path}")
 
-    config = PipelineConfig(
-        pose_model_path=args.pose_model,
-        device=args.device,
-        conf_pose=0.5,
-        zones_config=args.zones,
-    )
+    # Load the calibrated thresholds/hysteresis from the YAML, then apply any
+    # explicit CLI overrides on top (model/device/zones).
+    config = PipelineConfig.from_yaml(args.config)
+    if args.pose_model:
+        config.pose_model_path = args.pose_model
+    if args.device:
+        config.device = args.device
+    if args.zones:
+        config.zones_config = args.zones
+    print(f"[config] {args.config}  pose={config.pose_model_path}  device={config.device}  "
+          f"exit_frames={config.exit_frames}  fallen_aspect_ratio={config.thresholds.fallen_aspect_ratio}")
     pipeline = UnifiedPipeline(config)
 
     try:
@@ -248,9 +253,14 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--annotations", required=True)
     p.add_argument("--video", required=True)
-    p.add_argument("--pose-model", default="yolo11s-pose.pt")
-    p.add_argument("--device", default="cpu")
-    p.add_argument("--zones", default="config/zones/zones.json",
+    p.add_argument("--config", default="config/pose_config.yaml",
+                   help="pose_config.yaml to load thresholds/hysteresis from "
+                        "(so evaluation honours the calibrated config)")
+    # The next three default to None: when omitted, the YAML value is used;
+    # when given, they override the YAML (so a sweep can swap model/device).
+    p.add_argument("--pose-model", default=None)
+    p.add_argument("--device", default=None)
+    p.add_argument("--zones", default=None,
                    help="zones JSON (needed to score critical_zone scenarios)")
     return p.parse_args()
 

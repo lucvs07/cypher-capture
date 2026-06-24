@@ -1,52 +1,58 @@
-# Cypher Capture — Industrial Vision AI
+# Cypher Capture — Visão Computacional Industrial
 
-Real-time industrial safety monitoring for construction sites, built on [Ultralytics YOLO](https://docs.ultralytics.com/).
+Monitoramento de segurança em tempo real para canteiros de obras, construído sobre [Ultralytics YOLO](https://docs.ultralytics.com/).
 
-- **Phase 1 — PPE detection:** detects compliant and non-compliant Personal Protective Equipment from a webcam, video, or images, and optionally uploads violation frames to Cloudinary.
-- **Phase 2 — Pose & behavioural analysis:** a unified pipeline that runs pose estimation (YOLO11-pose + ByteTrack) alongside PPE detection in the same loop, computes joint angles and a full **REBA** ergonomic score, classifies posture (normal / ergonomically inadequate / immediate risk / critical zone) with temporal hysteresis, and flags entry/approach to demarcated critical zones.
+O projeto tem duas fases que compartilham a mesma base de código:
 
-Normative references: **NR-17** (ergonomics), **NR-35** (work at height), **REBA** (Hignett & McAtamney, 2000). See [docs/taxonomy.md](docs/taxonomy.md) for the full posture taxonomy.
+- **Fase 1 — Detecção de EPIs:** identifica equipamentos de proteção individual (presentes ou ausentes) a partir de webcam, vídeo ou imagens, e opcionalmente envia os frames de violação para o Cloudinary.
+- **Fase 2 — Pose e análise comportamental:** um pipeline unificado que roda estimação de pose (YOLO11-pose + ByteTrack) junto com a detecção de EPIs no mesmo laço, calcula ângulos articulares e um escore ergonômico **REBA** completo, classifica a postura em quatro categorias com histerese temporal e sinaliza a entrada/aproximação em zonas críticas demarcadas.
+
+Referências normativas: **NR-17** (ergonomia), **NR-35** (trabalho em altura) e **REBA** (Hignett & McAtamney, 2000). A taxonomia completa de posturas está em [docs/taxonomy.md](docs/taxonomy.md).
 
 ---
 
-## Project structure
+## Estrutura do projeto
 
 ```
 cypher-capture/
 ├── config/
-│   ├── construction-ppe.yaml     # Phase 1 dataset YAML (paths + class names)
-│   ├── pose_config.yaml          # Phase 2 single source of thresholds/params
-│   └── zones/                    # zones.json (created by the annotator)
+│   ├── construction-ppe.yaml     # dataset da Fase 1 (caminhos + nomes das classes)
+│   ├── pose_config.yaml          # Fase 2: fonte única de thresholds e parâmetros
+│   └── zones/                    # zones.json (gerado pelo anotador de zonas)
 ├── data/
-│   ├── annotations/              # ground-truth JSON for evaluation
-│   └── validation/               # local validation videos (git-ignored)
+│   ├── annotations/              # ground-truth JSON para avaliação
+│   └── validation/               # vídeos de validação locais (fora do versionamento)
 ├── docs/
-│   ├── taxonomy.md               # posture taxonomy, REBA, state machine
-│   ├── auditoria-fase2-*.md      # technical audit
-│   └── plano-testes-dia1.md      # day-1 test plan
+│   ├── taxonomy.md               # taxonomia de posturas, REBA, máquina de estados
+│   ├── auditoria-dia1-status.md  # status do Dia 1
+│   ├── metricas-dia2.md          # métricas medidas no Dia 2
+│   └── relatorio-dia2.md         # relatório consolidado do Dia 2
 ├── models/
-│   └── exp.pt                    # trained PPE detector (7 classes)
+│   └── exp.pt                    # detector de EPI treinado (7 classes)
 ├── scripts/
-│   ├── download_dataset.py       # fetch the Construction-PPE dataset
-│   ├── annotate_zones.py         # draw critical-zone polygons
-│   ├── annotate_gt.py            # label ground-truth posture per frame
-│   ├── benchmark_pose.py         # pose-model latency benchmark
-│   └── evaluate_pose.py          # PCK / accuracy / recall / latency harness
+│   ├── download_dataset.py       # baixa o dataset Construction-PPE
+│   ├── annotate_zones.py         # desenha polígonos de zona crítica
+│   ├── annotate_gt.py            # rotula a postura de referência por frame
+│   ├── benchmark_pose.py         # benchmark de latência do modelo de pose
+│   └── evaluate_pose.py          # métricas: PCK / acurácia / recall / latência
+├── tests/
+│   ├── test_reba.py              # testes do motor REBA (tabelas A/B/C)
+│   └── test_classifier.py        # testes da máquina de estados e histerese
 └── src/
-    ├── detect.py                 # Phase 1 entry point (PPE only)
-    ├── run_pipeline.py           # Phase 2 entry point (unified EPI + pose)
-    ├── train.py                  # train the PPE detector
-    ├── pose/                     # estimator, angles, REBA, classifier, temporal
-    ├── zones/                    # zone manager + detector
-    ├── fusion/                   # decision engine + unified pipeline
-    └── utils/                    # video, visualization, upload helpers
+    ├── detect.py                 # entry-point da Fase 1 (apenas EPI)
+    ├── run_pipeline.py           # entry-point da Fase 2 (EPI + pose unificados)
+    ├── train.py                  # treino do detector de EPI
+    ├── pose/                     # estimador, ângulos, REBA, classificador, temporal
+    ├── zones/                    # gerenciador e detector de zonas
+    ├── fusion/                   # motor de decisão + pipeline unificado
+    └── utils/                    # vídeo, visualização e upload
 ```
 
 ---
 
-## Setup
+## Instalação
 
-### 1. Clone and create a virtual environment
+### 1. Clonar e criar o ambiente virtual
 
 ```bash
 git clone git@github.com:lucvs07/cypher-capture.git
@@ -56,176 +62,220 @@ source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install --upgrade pip
 ```
 
-### 2. Install PyTorch
+### 2. Instalar o PyTorch
 
-The latency target (≤ 200 ms end-to-end) is only realistic on a **GPU**. Pick one:
+A meta de latência (≤ 200 ms ponta a ponta) só é realista em **GPU**. Escolha uma opção:
 
 ```bash
-# GPU (NVIDIA, CUDA 12.x) — recommended; required to meet the latency budget
+# GPU (NVIDIA, CUDA 12.x) — recomendado; necessário para cumprir o orçamento de latência
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
-# CPU-only (works, but the unified pipeline will exceed the latency budget)
+# Somente CPU (funciona, mas o pipeline unificado estoura a latência)
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
-Verify the GPU is visible:
+Confirme que a GPU está visível:
 
 ```bash
-python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
+python -c "import torch; print('cuda:', torch.cuda.is_available())"
 ```
 
-### 3. Install the remaining dependencies
+### 3. Instalar as demais dependências
 
 ```bash
 pip install -r requirements.txt
 ```
 
-The pose weights (`yolo11s-pose.pt`) download automatically on first run; to pre-fetch:
+Os pesos de pose (`yolo11s-pose.pt`) são baixados automaticamente na primeira execução. Para pré-baixar:
 
 ```bash
 python -c "from ultralytics import YOLO; YOLO('yolo11s-pose.pt')"
 ```
 
-### 4. (Phase 1 only) Configure Cloudinary
+### 4. (Apenas Fase 1) Configurar o Cloudinary
 
-Only needed if you want Phase 1 to upload violation frames. Copy `.env.example` to `.env` and fill in the credentials. Otherwise pass `--no-upload`.
+Necessário só se você quiser que a Fase 1 envie os frames de violação. Copie `.env.example` para `.env` e preencha as credenciais. Caso contrário, use `--no-upload`.
 
-> **Always run commands from the project root** — model and config paths are relative to it.
+> **Rode sempre os comandos a partir da raiz do projeto** — os caminhos de modelos e configs são relativos a ela.
 
 ---
 
-## Models
+## Modelos
 
-| Model | File | Task | Notes |
+| Modelo | Arquivo | Tarefa | Observações |
 |---|---|---|---|
-| PPE detector | `models/exp.pt` | detect | 7 classes: `GLOVE, Goggles, HELMET, MASK, Person, VEST, boots` |
-| Pose estimator | `yolo11s-pose.pt` | pose | auto-downloaded; 17 COCO keypoints |
+| Detector de EPI | `models/exp.pt` | detect | 7 classes: `GLOVE, Goggles, HELMET, MASK, Person, VEST, boots` |
+| Estimador de pose | `yolo11s-pose.pt` | pose | baixado automaticamente; 17 keypoints COCO |
 
-> The PPE model emits **presence** classes only (no `no_*` violation classes), so the unified pipeline reports detected PPE but does not raise PPE-violation events. Inspect any weights with:
+Para um modelo de pose mais rápido ou mais preciso, troque em `config/pose_config.yaml → pipeline.pose_model_path`: `yolo11n-pose.pt` (mais rápido), `yolo11s-pose.pt` (padrão) ou `yolo11m-pose.pt` (mais preciso).
+
+> O modelo de EPI emite apenas classes de **presença** (não há classes `no_*` de violação). Por isso o pipeline unificado reporta os EPIs detectados, mas **não** levanta eventos de violação de EPI. Para inspecionar as classes de quaisquer pesos:
 > `python -c "from ultralytics import YOLO; print(YOLO('models/exp.pt').names)"`
 
 ---
 
-## Running — Phase 2 (unified EPI + pose)
+## Como rodar — Fase 2 (EPI + pose unificados)
 
-The main entry point. Reads all parameters from `config/pose_config.yaml`.
+Este é o entry-point principal. Ele lê todos os parâmetros de `config/pose_config.yaml`.
 
 ```bash
-# Webcam, with a live window (Linux: source 0 → /dev/video0)
-python src/run_pipeline.py --source 0
+# Webcam, com janela ao vivo (use cuda para cumprir a latência)
+python src/run_pipeline.py --source 0 --device cuda
 
-# Video file
-python src/run_pipeline.py --source data/validation/clip.mp4
+# Arquivo de vídeo, salvando o vídeo anotado
+python src/run_pipeline.py --source data/validation/clip.mp4 --device cuda \
+  --output outputs/captures/clip_anotado.mp4
 
-# Headless (no GUI — servers / measurement)
-python src/run_pipeline.py --source data/validation/clip.mp4 --no-display
+# Headless (sem janela — servidores / medição)
+python src/run_pipeline.py --source data/validation/clip.mp4 --device cuda --no-display
 
-# Save an annotated video
-python src/run_pipeline.py --source data/validation/clip.mp4 --output outputs/captures/annot.mp4
-
-# Use a critical-zone definition
-python src/run_pipeline.py --source 0 --zones config/zones/zones.json
-
-# A different config (e.g. one with device: cuda)
-python src/run_pipeline.py --source 0 --config config/pose_config.yaml
+# Com zonas críticas
+python src/run_pipeline.py --source 0 --device cuda --zones config/zones/zones.json
 ```
 
-| Flag | Default | Description |
+| Flag | Padrão | Descrição |
 |---|---|---|
-| `--source` | — | webcam index, video path, or RTSP URL (required) |
-| `--config` | `config/pose_config.yaml` | pipeline configuration |
-| `--zones` | from config | critical-zone JSON override |
-| `--output` | — | save annotated video to this path |
-| `--no-display` | off | run without a GUI window |
-| `--min-severity` | `2` | print events at or above this severity (0–4) |
-| `--max-frames` | `0` | stop after N frames (0 = until source ends / `q`) |
+| `--source` | — | índice da webcam, caminho do vídeo ou URL RTSP (obrigatório) |
+| `--config` | `config/pose_config.yaml` | arquivo de configuração do pipeline |
+| `--device` | do config | sobrescreve o device: `cpu` \| `cuda` \| `mps` |
+| `--zones` | do config | sobrescreve o JSON de zonas críticas |
+| `--output` | — | salva o vídeo anotado neste caminho |
+| `--no-display` | desligado | roda sem janela (GUI) |
+| `--min-severity` | `2` | imprime eventos com severidade ≥ este valor (0–4) |
+| `--max-frames` | `0` | para após N frames (0 = até o fim da fonte / `q`) |
+| `--show-epi` | desligado | desenha as caixas cruas do detector de EPI |
 
-Each frame prints a per-stage latency HUD (`pose | epi | analysis | overlay`), events at/above the severity threshold, and a final latency summary with the pass/fail verdict against the 200 ms budget. Press `q` to quit a windowed run.
+Cada frame imprime um HUD de latência por etapa (`pose | epi | analysis | overlay`), os eventos acima do limiar de severidade e, ao final, um resumo de latência com o veredito (passou/falhou) contra o orçamento de 200 ms. Pressione **`q`** para sair de uma execução com janela.
 
-**Selecting the device / model:** edit `config/pose_config.yaml` → `pipeline.device` (`cpu` | `cuda` | `mps`) and `pipeline.pose_model_path` (`yolo11n-pose.pt` for speed, `yolo11s-pose.pt` default, `yolo11m-pose.pt` for accuracy).
+### Latência de referência
 
-### Measured latency (this repo's reference numbers)
+Medida sobre um clipe com ~4 pessoas, `yolo11s-pose` + `exp.pt`:
 
-Same 5 s clip (3 people), `yolo11s-pose` + `exp.pt`:
+| Device | p95 E2E | Veredito (≤ 200 ms) |
+|---|---|---|
+| CPU | ~362 ms | ❌ FALHA |
+| GPU (CUDA) | ~45 ms | ✅ PASSA |
 
-| Device | p95 E2E | pose / frame | epi / frame | Verdict (≤ 200 ms) |
-|---|---|---|---|---|
-| CPU | ~333 ms | ~83 ms | ~204 ms | ❌ FAIL |
-| GPU (RTX 3050) | ~44 ms | ~13 ms | ~28 ms | ✅ PASS |
+A conclusão prática é direta: **rode em GPU** (`--device cuda` ou `pipeline.device: cuda` no YAML).
 
 ---
 
-## Running — Phase 1 (PPE detection only)
+## Categorias de postura e detecção de queda
+
+O classificador atribui a cada pessoa uma das quatro categorias, em ordem de prioridade:
+
+| Categoria | Quando dispara |
+|---|---|
+| `immediate_risk` | queda detectada (movimento, postura horizontal/invertida ou perda de equilíbrio) |
+| `critical_zone` | pessoa dentro de um polígono de zona demarcada |
+| `ergonomically_inadequate` | postura de risco sustentada (REBA alto, agachamento, tronco fletido, braço elevado) |
+| `normal` | nenhuma condição acima |
+
+A máquina de estados usa **histerese assimétrica**: entrar num alarme é rápido (poucos frames), sair é lento (`exit_frames`). Isso prioriza o **recall** — em segurança, um falso negativo (não detectar uma queda) é inaceitável, enquanto um falso alarme é tolerável.
+
+A detecção de queda combina vários sinais (operador lógico OU, priorizando recall):
+- **velocidade de queda** a partir do centro do quadril (estável a movimentos de braço);
+- **postura "caída" sustentada**, independente de velocidade — tronco horizontal, ou eixo cabeça→pés colapsado (`vertical_extent`) — que mantém o alarme ativo mesmo com a pessoa caída e imóvel.
+
+Todos os limiares são configuráveis em `config/pose_config.yaml`, sem alterar o código.
+
+---
+
+## Como rodar — Fase 1 (apenas detecção de EPI)
 
 ```bash
-# Webcam (note the "usb" prefix here)
+# Webcam (note o prefixo "usb" aqui)
 python src/detect.py --model models/exp.pt --source usb0 --no-upload
 
-# Video / single image / directory of images
+# Vídeo / imagem única / diretório de imagens
 python src/detect.py --model models/exp.pt --source clip.mp4 --no-upload
-python src/detect.py --model models/exp.pt --source image.jpg --no-upload
-python src/detect.py --model models/exp.pt --source images/ --no-upload
+python src/detect.py --model models/exp.pt --source imagem.jpg --no-upload
+python src/detect.py --model models/exp.pt --source imagens/ --no-upload
 ```
 
-| Flag | Default | Description |
+| Flag | Padrão | Descrição |
 |---|---|---|
-| `--model` | — | path to YOLO weights (required) |
-| `--source` | — | `usb0`, video, image, or directory (required) |
-| `--thresh` | `0.5` | minimum confidence to display / flag |
-| `--cooldown` | `5.0` | seconds between uploads on live streams |
-| `--no-upload` | off | disable Cloudinary upload |
+| `--model` | — | caminho dos pesos YOLO (obrigatório) |
+| `--source` | — | `usb0`, vídeo, imagem ou diretório (obrigatório) |
+| `--thresh` | `0.5` | confiança mínima para exibir / sinalizar |
+| `--cooldown` | `5.0` | segundos entre uploads em streams ao vivo |
+| `--no-upload` | desligado | desativa o upload para o Cloudinary |
 
-`detect.py` always opens a window (no headless mode).
+O `detect.py` sempre abre uma janela (não tem modo headless).
 
 ---
 
-## Critical zones
+## Zonas críticas
 
-Draw zone polygons over a frame from the same camera/resolution you will run on:
+Desenhe os polígonos de zona sobre um frame da **mesma câmera/resolução** em que você vai rodar:
 
 ```bash
 python scripts/annotate_zones.py --source data/validation/clip.mp4 --output config/zones/zones.json
-# left-click vertices → ENTER → enter name/type/severity → q to quit
+# clique com o botão esquerdo nos vértices → ENTER → informe nome/tipo/severidade → q para sair
 ```
 
-A starting example lives at `config/zones/zones.example.json` (copy it to `config/zones/zones.json` and adjust the vertices to your resolution).
+Há um exemplo inicial em `config/zones/zones.example.json` (copie para `config/zones/zones.json` e ajuste os vértices à sua resolução).
 
 ---
 
-## Evaluation & benchmarking
+## Avaliação e benchmark
 
-**Pose-model latency in isolation:**
+**Latência do modelo de pose isolado:**
 
 ```bash
 python scripts/benchmark_pose.py --source data/validation/clip.mp4 --frames 200 --track
 ```
 
-**Posture metrics (PCK / accuracy / recall / false-alarm / latency).** First create ground truth, then evaluate:
+**Métricas de postura (PCK / acurácia / recall / falso-alarme / latência).** Primeiro crie o ground-truth, depois avalie:
 
 ```bash
 python scripts/annotate_gt.py --video data/validation/clip.mp4 --output data/annotations/clip_gt.json
-# label keys: n=normal e=ergonomic i=immediate_risk z=critical_zone | SPACE pause | . step | q finish
+# teclas: n=normal e=ergonômico i=immediate_risk z=critical_zone | SPACE pausa | . passo | q finaliza
 
 python scripts/evaluate_pose.py \
   --annotations data/annotations/clip_gt.json \
   --video data/validation/clip.mp4 \
-  --zones config/zones/zones.json --device cuda
+  --device cuda
 ```
 
-> Ground truth produced by `annotate_gt.py` is intended for the **classification** metrics (recall, accuracy, false alarms). Its keypoints come from the detector itself, so the reported PCK is self-referential — independent PCK requires manually-labelled keypoints.
+O `evaluate_pose.py` carrega os thresholds de `config/pose_config.yaml` (use `--config` para apontar outro arquivo); `--pose-model`, `--device` e `--zones` são overrides opcionais.
+
+> O ground-truth gerado pelo `annotate_gt.py` serve às métricas de **classificação** (recall, acurácia, falso-alarme). Os keypoints dele vêm do próprio detector, então o PCK reportado é auto-referencial — um PCK independente exige keypoints rotulados manualmente.
 
 ---
 
-## Training (Phase 1 detector)
+## Testes
+
+A lógica determinística (motor REBA e máquina de estados do classificador) é coberta por testes unitários — não exigem GPU nem modelo:
 
 ```bash
-python scripts/download_dataset.py          # fetch the Construction-PPE dataset
+pip install pytest
+python -m pytest tests/ -q
+```
+
+Os testes do REBA validam as tabelas A/B/C contra o worksheet canônico de Hignett & McAtamney; os do classificador travam a histerese assimétrica e a detecção de queda (o que protege a meta de recall ≥ 0,90).
+
+---
+
+## Treino (detector da Fase 1)
+
+```bash
+python scripts/download_dataset.py          # baixa o dataset Construction-PPE
 python src/train.py --model yolo11n.pt --epochs 100 --imgsz 640 --batch 16
 cp outputs/runs/ppe_train/weights/best.pt models/exp.pt
 ```
 
 ---
 
-## License
+## Documentação adicional
 
-AGPL-3.0 — inherited from the Construction-PPE dataset.
+- [docs/taxonomy.md](docs/taxonomy.md) — taxonomia de posturas, REBA e máquina de estados.
+- [docs/auditoria-dia1-status.md](docs/auditoria-dia1-status.md) — status dos entregáveis do Dia 1.
+- [docs/metricas-dia2.md](docs/metricas-dia2.md) — métricas medidas e calibração do Dia 2.
+- [docs/relatorio-dia2.md](docs/relatorio-dia2.md) — relatório consolidado do Dia 2.
+
+---
+
+## Licença
+
+AGPL-3.0 — herdada do dataset Construction-PPE.

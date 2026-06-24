@@ -45,6 +45,9 @@ def parse_args() -> argparse.Namespace:
                    help="pose_config.yaml path (default: config/pose_config.yaml)")
     p.add_argument("--zones", default=None,
                    help="override zones JSON path (default: taken from config)")
+    p.add_argument("--device", default=None, choices=["cpu", "cuda", "mps"],
+                   help="override inference device (default: taken from config; "
+                        "use 'cuda' to meet the 200ms latency target)")
     p.add_argument("--output", default=None,
                    help="path to save annotated video (e.g. outputs/captures/run.mp4)")
     p.add_argument("--no-display", action="store_true",
@@ -64,6 +67,8 @@ def main() -> None:
     config = PipelineConfig.from_yaml(args.config)
     if args.zones:
         config.zones_config = args.zones
+    if args.device:
+        config.device = args.device
 
     print(f"[config] device={config.device}  pose={config.pose_model_path}  epi={config.epi_model_path}")
     print(f"[config] zones={config.zones_config}  target_fps={config.target_fps}  budget={config.max_latency_ms:.0f}ms")
