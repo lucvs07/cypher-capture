@@ -26,7 +26,7 @@
 Sistema de visão computacional que detecta em tempo real:
 - **(Fase 1) EPIs** — capacete, óculos, máscara, colete, luvas, botas — **COMPLETO**
 - **(Fase 2) Posturas de risco ergonômico e quedas iminentes** — **EM VALIDAÇÃO**
-- **(Fase 3) Notificação inteligente** — não iniciada
+- **(Fase 3) Notificação inteligente + dashboard** — **em prototipagem** (interface React iniciada)
 - **(Fase 4) Validação industrial na Metaindústria** — planejada
 
 ### Dor
@@ -94,7 +94,7 @@ funcionalidade existe no código, mas fica fora do escopo desta apresentação.
 - **Produção (Fase 4):** Metaindústria (hardware a definir com a SPI)
 
 ### Linguagens
-- Python (core de IA/CV) · JavaScript/React (dashboard, planejado) · SQL · YAML
+- Python (core de IA/CV) · JavaScript/React (dashboard — **protótipo em desenvolvimento**) · SQL · YAML
 
 ### Hardware
 - **Mínimo:** 1 câmera USB ou IP (RTSP)
@@ -129,8 +129,9 @@ funcionalidade existe no código, mas fica fora do escopo desta apresentação.
 - ⚠️ Métricas validadas: **Recall IR 0,986 ✅** · Acurácia 0,78 ❌ (2D frontal) · Latência GPU
   p95 44,9 ms ✅ · PCK 1,000 (auto-referencial, inválido)
 
-**Fase 3 (Notificação Inteligente) — NÃO INICIADA**
-- [ ] Consumer RabbitMQ · [ ] Dashboard web · [ ] 2+ canais de notificação
+**Fase 3 (Notificação Inteligente) — INICIADA (prototipagem)**
+- 🔨 Dashboard web — **interface React em desenvolvimento (protótipo)**
+- [ ] Consumer RabbitMQ · [ ] 2+ canais de notificação
 
 **Fase 4 (Validação Industrial) — NÃO INICIADA**
 - [ ] Deploy na Metaindústria · [ ] Testes com múltiplas câmeras
