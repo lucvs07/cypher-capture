@@ -50,7 +50,9 @@ visual).
 
 ## Seção 3 — Demonstração Prática
 
-**Formato:** vídeos anotados (`outputs/captures/`), ~30–45 s cada.
+**Formato:** vídeos anotados (`outputs/captures/`), ~30–45 s cada. **Esta mentoria demonstra
+2 cenários** (ergonomia e queda). O cenário de **zona crítica não será demonstrado** agora — a
+funcionalidade existe no código, mas fica fora do escopo desta apresentação.
 
 ### Cenário 1 — Postura ergonomicamente inadequada (`cenario.mp4`, 33,6 s) ✅
 - Operador com braço elevado acima do ombro detectado (ERG recall = 0,64)
@@ -67,11 +69,11 @@ visual).
 - **Recall = 0,986** (harness oficial) — **excede a meta de 0,90**
 - Output: `outputs/captures/cenario2_annot.mp4`
 
-### Cenário 3 — Aproximação a zona crítica ⚠️ **PENDENTE DE FILMAGEM**
-- Zona desenhada com `annotate_zones.py` (amarelo = APPROACHING, vermelho = INSIDE)
-- Categoria muda dinamicamente com a posição
-- **Status:** vídeo não gravado e `config/zones/zones.json` ausente. Opções para a demo:
-  (a) gravar antes de quinta; (b) demonstrar ao vivo com zona de exemplo ajustada à resolução.
+### Cenário 3 — Aproximação a zona crítica — **FORA DO ESCOPO desta demo**
+- A funcionalidade existe (`src/zones/`, `annotate_zones.py`; amarelo = APPROACHING, vermelho =
+  INSIDE), mas **não será demonstrada nesta mentoria**.
+- Se algum mentor perguntar: mencionar que está implementada e pronta para validação assim que o
+  footage de zona for gravado e `config/zones/zones.json` for gerado (pós-mentoria).
 
 ---
 
@@ -174,10 +176,10 @@ visual).
 ### Estrutura de slides esperada
 - Slide 1: Capa (grupo + fotos)
 - Slides 2–3: Contextualização (dor → solução → entrega)
-- Slides 4–6: Demos (cenário 1 ergonomia, cenário 2 queda, cenário 3 zona/pendente)
-- Slides 7–8: Stack técnica + normas
-- Slides 9–10: Cronograma e status (Fases 1–4)
-- Slide 11: Próximos passos e call-to-action
+- Slides 4–5: Demos (cenário 1 ergonomia, cenário 2 queda) — zona fora do escopo desta demo
+- Slides 6–7: Stack técnica + normas
+- Slides 8–9: Cronograma e status (Fases 1–4)
+- Slide 10: Próximos passos e call-to-action
 
 ### Mensagens-chave (destacar visualmente)
 - **Recall de risco imediato 0,986** — meta de 0,90 superada

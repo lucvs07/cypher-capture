@@ -26,7 +26,8 @@
 > 2. **Fechar as perguntas para os mentores** — validar a lista abaixo. *(Equipe, ~15 min)*
 >
 > Opcional, eleva a demo (não bloqueia): refilmar o cenário de ergonomia **de perfil** (subir
-> acurácia acima de 0,85) e filmar o cenário 3 (zona) + gerar `config/zones/zones.json`.
+> acurácia acima de 0,85). **O cenário de zona crítica não será demonstrado nesta mentoria**
+> (funcionalidade pronta no código; validação fica para pós-mentoria).
 
 ## Perguntas técnicas sugeridas para Fernando e Wendel
 

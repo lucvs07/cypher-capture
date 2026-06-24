@@ -90,10 +90,11 @@ precisão em contexto de segurança.
    **Plano de ação:** refilmar o cenário de ergonomia **de perfil**, corpo inteiro com os pés no
    quadro. A regra e os thresholds já estão prontos; é uma questão de ângulo de câmera.
 
-2. **Terceiro cenário (zona crítica) não filmado e `config/zones/zones.json` ausente.**
-   Existe só `zones.example.json`. O pipeline não quebra sem zonas (`0 zone(s) loaded`).
-   **Plano de ação:** filmar o cenário 3, depois `annotate_zones.py --source ... --output config/zones/zones.json`.
-   Para a demo de quinta, é possível demonstrar zonas com o exemplo ajustado à resolução.
+2. **Zona crítica fora do escopo desta demo (decisão de equipe).** A funcionalidade está
+   implementada (`src/zones/`, `annotate_zones.py`), mas **não será demonstrada nesta mentoria**;
+   o cenário 3 não foi filmado e `config/zones/zones.json` não existe (só `zones.example.json`).
+   O pipeline não quebra sem zonas (`0 zone(s) loaded`). **Pós-mentoria:** filmar o cenário,
+   depois `annotate_zones.py --source ... --output config/zones/zones.json`.
 
 3. **Precisão de risco imediato baixa (0,42–0,58).** Decisão deliberada: em segurança, um falso
    negativo (não detectar queda) é inaceitável; um falso alarme é tolerável. O próximo nível de
@@ -124,9 +125,9 @@ A apresentação tem 5 seções. O conteúdo de cada uma vem das auditorias abai
    (placeholders em [apresentacao-esqueleto.md](apresentacao-esqueleto.md) §1).
 2. **Contextualização** (dor, solução, entrega de setembro) — de [relatorio-dia2.md](relatorio-dia2.md)
    e da visão do produto (Cypher — Industrial Vision AI).
-3. **Demonstração prática** (3 cenários Fase 1+2) — de [metricas-dia2.md](metricas-dia2.md) §5;
-   vídeos anotados em `outputs/captures/` (`cenario_annot.mp4`, `cenario2_annot.mp4`). **Cenário 3
-   (zona) pendente de filmagem.**
+3. **Demonstração prática** (2 cenários Fase 1+2: ergonomia e queda) — de
+   [metricas-dia2.md](metricas-dia2.md) §5; vídeos anotados em `outputs/captures/`
+   (`cenario_annot.mp4`, `cenario2_annot.mp4`). **Zona crítica fora do escopo desta demo.**
 4. **Materiais e métodos** (stack, ambientes, normas, hardware) — README + este documento.
 5. **Cronograma** (onde estão, o que fizeram, o que falta) — **desta** `status-pre-mentoria.md`
    (Seção 2) e do esqueleto §5.
