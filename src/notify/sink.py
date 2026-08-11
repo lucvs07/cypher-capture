@@ -127,6 +127,7 @@ class HttpIncidentSink:
         self._parar = threading.Event()
         self._worker: Optional[threading.Thread] = None
         self._dropped = 0
+        self._em_voo = 0        # itens fora da fila, dentro do transporte
 
     # ------------------------------------------------------------------
     # API pública — chamada da thread do frame, precisa ser barata
@@ -151,6 +152,18 @@ class HttpIncidentSink:
         self._worker.start()
 
     def stop(self, timeout: float = 5.0) -> None:
+        # Drena antes de desistir. run_pipeline chama tracker.flush() e logo em
+        # seguida stop(): os fechamentos finais entram na fila microssegundos
+        # antes desta chamada, e sem esta espera todos iriam para o spill —
+        # o painel ficaria com o motivo de fechamento errado ate a execucao
+        # seguinte drenar o arquivo.
+        prazo = time.monotonic() + timeout
+        while time.monotonic() < prazo:
+            with self._lock:
+                if not self._items and self._em_voo == 0:
+                    break
+            time.sleep(0.02)
+
         self._parar.set()
         with self._nao_vazia:
             self._nao_vazia.notify_all()
@@ -206,7 +219,12 @@ class HttpIncidentSink:
                 if self._parar.is_set() and not self._items:
                     return
                 item = self._items.pop(0)
-            self._entregar(item)
+                self._em_voo += 1
+            try:
+                self._entregar(item)
+            finally:
+                with self._lock:
+                    self._em_voo -= 1
 
     def _entregar(self, item: _Item) -> None:
         while item.attempts < self.max_attempts and not self._parar.is_set():

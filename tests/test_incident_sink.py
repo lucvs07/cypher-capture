@@ -216,6 +216,24 @@ def test_fila_cheia_descarta_o_menos_severo_e_nunca_a_queda():
         sink.stop()
 
 
+def test_parada_entrega_o_que_ainda_esta_na_fila():
+    """O fechamento final precisa chegar na API, nao no disco.
+
+    run_pipeline chama tracker.flush() e sink.stop() em sequencia dentro do
+    finally: os PATCH de PIPELINE_STOPPED entram na fila microssegundos antes
+    da parada. Sem drenagem, todos eles iam para o spill e o painel ficava
+    com o motivo de fechamento errado ate a proxima execucao.
+    """
+    transporte = TransporteFake()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte)
+    sink.start()
+    sink.open(relatorio("fecha-no-fim"))
+    sink.stop()                     # imediatamente depois, sem espera
+
+    assert [p[1]["incidentKey"] for p in transporte.posts] == ["fecha-no-fim"]
+    assert not __import__("pathlib").Path("outputs/incidents.jsonl").exists()
+
+
 def test_parada_grava_em_disco_o_que_nao_deu_tempo_de_entregar():
     """stop() nao pode ser um ralo silencioso.
 
