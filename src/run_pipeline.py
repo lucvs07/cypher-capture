@@ -102,10 +102,16 @@ def main() -> None:
         notify_config.stream_enabled = False
 
     if notify_config.enabled:
+        uploader = None
+        if os.getenv("CLOUDINARY_CLOUD_NAME"):
+            from src.notify.sink import CloudinaryUploader
+            uploader = CloudinaryUploader()
+            print("[notify] snapshots serao enviados ao Cloudinary")
         sink = HttpIncidentSink(
             notify_config.api_url,
             queue_size=notify_config.queue_size,
             spill_path=notify_config.spill_path,
+            uploader=uploader,
         )
         print(f"[notify] enviando incidentes para {notify_config.api_url} "
               f"como {notify_config.camera_id} (run {notify_config.run_id})")
@@ -194,7 +200,8 @@ def main() -> None:
                           f"posture={ev.posture} reba={ev.reba_score}(AL{ev.action_level}) "
                           f"zone={ev.zone_status}/{ev.zone_name or '-'} ppe=[{present}] viol={viol} :: {ev.reason}")
 
-            tracker.process(events, datetime.now(timezone.utc).astimezone())
+            tracker.process(events, datetime.now(timezone.utc).astimezone(),
+                            frame=annotated)
 
             # Burn a compact HUD onto the saved/displayed frame too
             cv2.putText(annotated, f"{dt_ms:.0f}ms  {fps:.1f}FPS  stride={pipeline._epi_stride}",

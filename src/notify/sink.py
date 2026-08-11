@@ -46,6 +46,32 @@ class RequestsTransport:
         resposta.raise_for_status()
 
 
+class Uploader(Protocol):
+    def upload(self, frame, public_id: str) -> str: ...
+
+
+class CloudinaryUploader:
+    """Embrulha src/utils/upload.py. Importa preguiçosamente para que os
+    testes rodem sem credencial e sem a dependência carregada."""
+
+    def __init__(self, folder: str = "cypher-incidents") -> None:
+        self.folder = folder
+
+    def upload(self, frame, public_id: str) -> str:
+        import os
+        import tempfile
+
+        import cloudinary.uploader
+        import cv2
+
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            cv2.imwrite(tmp.name, frame)
+            resposta = cloudinary.uploader.upload(
+                tmp.name, folder=self.folder, public_id=public_id)
+        os.unlink(tmp.name)
+        return resposta["secure_url"]
+
+
 class ConsoleIncidentSink:
     """Comportamento padrão sem API configurada: imprime e segue."""
 
@@ -73,6 +99,8 @@ class _Item:
     severity: int
     payload: dict
     attempts: int = 0
+    # Só existe em memória: o spill em disco nunca serializa o frame.
+    snapshot_frame: object = None
 
 
 class HttpIncidentSink:
@@ -83,13 +111,15 @@ class HttpIncidentSink:
                  spill_path: str = "outputs/incidents.jsonl",
                  max_attempts: int = 5,
                  backoff_base: float = 0.5,
-                 transport: Optional[Transport] = None) -> None:
+                 transport: Optional[Transport] = None,
+                 uploader: Optional[Uploader] = None) -> None:
         self.api_url = api_url.rstrip("/")
         self.queue_size = queue_size
         self.spill_path = Path(spill_path)
         self.max_attempts = max_attempts
         self.backoff_base = backoff_base
         self.transport = transport or RequestsTransport()
+        self.uploader = uploader
 
         self._items: list[_Item] = []
         self._lock = threading.Lock()
@@ -104,7 +134,8 @@ class HttpIncidentSink:
 
     def open(self, relatorio: IncidentReport) -> None:
         self._enfileirar(_Item("open", relatorio.incident_key,
-                               relatorio.severity, relatorio.open_payload()))
+                               relatorio.severity, relatorio.open_payload(),
+                               snapshot_frame=relatorio.snapshot_frame))
 
     def close(self, relatorio: IncidentReport) -> None:
         payload = relatorio.close_payload()
@@ -183,6 +214,7 @@ class HttpIncidentSink:
             try:
                 if item.kind == "open":
                     self.transport.post(f"{self.api_url}/incidents", item.payload)
+                    self._anexar_snapshot(item)
                 else:
                     self.transport.patch(
                         f"{self.api_url}/incidents/{item.incident_key}", item.payload)
@@ -198,6 +230,20 @@ class HttpIncidentSink:
         # Saiu do laço sem entregar porque a parada chegou no meio: o item já
         # foi tirado da fila, então stop() não o alcança mais. Vai para o disco.
         self._gravar_spill(item)
+
+    def _anexar_snapshot(self, item: _Item) -> None:
+        """Upload e PATCH depois que o incidente já foi entregue.
+
+        Falha aqui perde a imagem, nunca o alerta: o POST já aconteceu.
+        """
+        if self.uploader is None or item.snapshot_frame is None:
+            return
+        try:
+            url = self.uploader.upload(item.snapshot_frame, item.incident_key)
+            self.transport.patch(
+                f"{self.api_url}/incidents/{item.incident_key}", {"snapshotUrl": url})
+        except Exception as falha:
+            log.warning("Snapshot de %s nao anexado: %s", item.incident_key, falha)
 
     def _gravar_spill(self, item: _Item) -> None:
         try:

@@ -57,13 +57,16 @@ class IncidentTracker:
         self._frames_seen: dict[int, int] = {}
         self._last_frame_seen: dict[int, int] = {}
         self._frame_idx = 0
+        self._frame_atual = None    # frame anotado do frame em processamento
 
     # ------------------------------------------------------------------
     # Laço principal
     # ------------------------------------------------------------------
 
-    def process(self, events: list[PersonEvent], now: datetime) -> None:
+    def process(self, events: list[PersonEvent], now: datetime,
+                frame=None) -> None:
         self._frame_idx += 1
+        self._frame_atual = frame
 
         for event in events:
             self._frames_seen[event.person_id] = self._frames_seen.get(event.person_id, 0) + 1
@@ -153,6 +156,7 @@ class IncidentTracker:
             epi_missing=list(event.epi_violations),
             detected_at=now,
             peak_severity=event.severity,
+            snapshot_frame=self._frame_atual,
         )
         self._open[key] = relatorio
         self._on_open(relatorio)

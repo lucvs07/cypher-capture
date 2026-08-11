@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 # Categoria de postura -> tipo de incidente (spec §3.4).
 # "normal" não aparece: não gera incidente.
@@ -70,6 +70,9 @@ class IncidentReport:
     duration_seconds: Optional[float] = None
     peak_severity: Optional[int] = None
     closed_reason: Optional[str] = None
+    # Frame anotado do momento da abertura. Nunca serializado: existe apenas
+    # para o sink fazer o upload fora do caminho crítico.
+    snapshot_frame: Any = None
 
     def open_payload(self) -> dict:
         """Corpo do POST de abertura. Nunca carrega dados de fechamento."""
