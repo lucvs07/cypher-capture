@@ -248,6 +248,14 @@ def _reproduzir_cenario2(**overrides):
 
 
 def test_cenario2_produz_dois_incidentes_para_duas_quedas():
+    """Trava o replay, não a contagem da execução ao vivo.
+
+    Aqui as duas quedas caem dentro da janela de merge (intervalo de 11,6 s em
+    tempo de vídeo) e viram um FALL_RISK só. A execução real do pipeline sobre
+    o mesmo clipe produz DOIS FALL_RISK, porque a janela é medida em tempo de
+    relógio e o processamento estica o intervalo para ~17,9 s. Ver
+    docs/e1b-verificacao.md §1 — não é regressão, são critérios diferentes.
+    """
     _, coletor = _reproduzir_cenario2()
 
     tipos = sorted(r.type for r in coletor.abertos)

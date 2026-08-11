@@ -85,6 +85,13 @@ falha sem a correção.
 Depois da correção, a execução limpa da seção 1 terminou com o spill **vazio** e
 o `PIPELINE_STOPPED` entregue diretamente, sem passar pelo disco.
 
+Efeito colateral conhecido, deliberadamente não ajustado: com a API inacessível,
+o encerramento passa a levar até ~5 s em vez de ser quase instantâneo. O
+`stop()` espera a drenagem antes do `join`, e as 5 tentativas de um item com
+`backoff_base=0.5` já estouram essa janela. Não trava — a execução offline da
+seção 2 saiu com código 0 —, mas num Ctrl-C durante demonstração a espera
+aparece como uma pausa.
+
 ## 4. Compatibilidade para trás
 
 Sem `--api-url`, o pipeline se comporta como antes: imprime
