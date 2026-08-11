@@ -150,6 +150,7 @@ class UnifiedPipeline:
             # Temporal metrics use the previous frame's confirmed state (one
             # frame of lag) so the fall-risk score can feed this frame's rules.
             prev_state = self._classifier.get_state(pose.person_id)
+            prev_category = prev_state.category          # antes do update
             metrics = self._temporal.update(
                 pose.person_id, angles, pose.bbox,
                 is_bad_posture=prev_state.category != PostureCategory.NORMAL,
@@ -164,6 +165,7 @@ class UnifiedPipeline:
             event = self._decision.fuse(
                 pose.person_id, posture_state, reba, zone_results, epi_labels
             )
+            event.previous_posture = prev_category.value
             events.append(event)
         analysis_ms = (time.perf_counter() - t_analysis) * 1000
 
