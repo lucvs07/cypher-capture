@@ -94,10 +94,15 @@ class UnifiedPipeline:
         self._last_epi_labels: list[str] = []
         self.last_poses: list[PersonPose] = []  # poses from the most recent frame
         self.last_timings: dict[str, float] = {}  # per-stage latency of the last frame (ms)
+        self._frame_publisher = None    # callable opcional, alimentado pelo MJPEG
 
     def _ensure_epi_model(self) -> None:
         if self._epi_model is None:
             self._epi_model = YOLO(self.config.epi_model_path)
+
+    def set_frame_publisher(self, publisher) -> None:
+        """Registra quem recebe cada frame anotado (ex.: MjpegServer.publish)."""
+        self._frame_publisher = publisher
 
     def process_frame(self, frame: np.ndarray) -> tuple[np.ndarray, list[PersonEvent]]:
         t0 = time.perf_counter()
@@ -190,6 +195,9 @@ class UnifiedPipeline:
             # recover when latency drops well below budget (the 0.7 margin
             # avoids oscillating around the threshold)
             self._epi_stride -= 1
+
+        if self._frame_publisher is not None:
+            self._frame_publisher(annotated)
 
         return annotated, events
 

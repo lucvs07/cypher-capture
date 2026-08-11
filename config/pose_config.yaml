@@ -41,3 +41,16 @@ thresholds:
 
 zones:
   approach_buffer_px: 80.0           # buffer around zone boundary for the "approaching" state
+
+notify:
+  camera_id: CAM-01
+  # Sem api_url, o pipeline apenas imprime os incidentes (comportamento antigo).
+  # api_url: http://localhost:8080/api/v1
+  min_severity: 2
+  merge_window_seconds: 15            # calibrado em cenario2.mp4 (spec §4.1.2)
+  evict_after_frames: 45              # track sumido por N frames = fecha como TRACK_LOST
+  min_track_frames: 15                # tracks mais curtos nao abrem incidente
+  queue_size: 256
+  spill_path: outputs/incidents.jsonl
+  stream_port: 8090
+  stream_enabled: true
