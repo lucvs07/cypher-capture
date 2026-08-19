@@ -45,6 +45,9 @@ outputs/runs/*
 outputs/captures/*
 !outputs/captures/.gitkeep
 
+# Spill de incidentes não entregues à API (fila de reenvio, drenada na subida)
+outputs/incidents.jsonl
+
 # IDE
 .vscode/
 .idea/

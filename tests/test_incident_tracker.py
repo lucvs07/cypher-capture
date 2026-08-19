@@ -1,0 +1,317 @@
+"""
+Testes do ciclo de vida do incidente (src/notify/).
+
+O que está sendo protegido: a tradução de transições da máquina de estados em
+episódios com início e fim. Sem janela de merge, as 2 quedas reais de
+cenario2.mp4 viram uma rajada de alertas; sem eviction, incidentes ficam
+abertos para sempre. Os números vêm de medição, não de estimativa — ver a
+spec §4.1.2.
+
+O replay da fixture (transições medidas em cenario2.mp4) fecha em 2 incidentes
+com a janela de merge e 8 sem ela. A execução real do pipeline chegou a 10
+porque também contava episódios que os guards de idade de track e de
+severidade agora barram antes de virarem incidente.
+
+Nada aqui exige GPU ou modelo: os eventos são construídos à mão.
+"""
+from __future__ import annotations
+
+import json
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+
+from src.fusion.engine import PersonEvent
+from src.notify.incident import ClosedReason
+from src.notify.tracker import IncidentTracker, TrackerConfig
+
+BRT = timezone(timedelta(hours=-3))
+T0 = datetime(2026, 8, 10, 14, 0, 0, tzinfo=BRT)
+
+
+class Coletor:
+    """Guarda o que o tracker abriu e fechou, na ordem."""
+
+    def __init__(self) -> None:
+        self.abertos: list = []
+        self.fechados: list = []
+
+    def on_open(self, relatorio):
+        self.abertos.append(relatorio)
+
+    def on_close(self, relatorio):
+        self.fechados.append(relatorio)
+
+
+def montar(**overrides):
+    coletor = Coletor()
+    config = TrackerConfig(camera_id="CAM-01", run_id="run-t", **overrides)
+    return IncidentTracker(config, coletor.on_open, coletor.on_close), coletor
+
+
+def evento(person_id: int, postura: str, anterior: str, severidade: int = 4) -> PersonEvent:
+    return PersonEvent(
+        person_id=person_id,
+        posture=postura,
+        previous_posture=anterior,
+        severity=severidade,
+        reason="fallen_sustained",
+    )
+
+
+def aquecer(tracker, person_id: int, frames: int, quando: datetime) -> None:
+    """Dá vida suficiente ao track para passar pelo guard de min_track_frames."""
+    for _ in range(frames):
+        tracker.process([evento(person_id, "normal", "normal", severidade=0)], quando)
+
+
+def test_evento_nasce_com_postura_anterior_normal():
+    evento = PersonEvent(person_id=1)
+
+    assert evento.previous_posture == "normal"
+
+
+def test_postura_anterior_e_um_campo_independente_da_atual():
+    evento = PersonEvent(person_id=1, posture="immediate_risk",
+                         previous_posture="normal")
+
+    assert evento.posture == "immediate_risk"
+    assert evento.previous_posture == "normal"
+
+
+def test_transicao_para_alarme_abre_incidente():
+    tracker, coletor = montar()
+    aquecer(tracker, 1, 20, T0)
+
+    tracker.process([evento(1, "immediate_risk", "normal")], T0)
+
+    assert len(coletor.abertos) == 1
+    assert coletor.abertos[0].type == "FALL_RISK"
+    assert coletor.abertos[0].severity == 4
+
+
+def test_alarme_sustentado_nao_reabre_a_cada_frame():
+    tracker, coletor = montar()
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "immediate_risk", "normal")], T0)
+
+    for i in range(30):
+        tracker.process([evento(1, "immediate_risk", "immediate_risk")],
+                        T0 + timedelta(seconds=i * 0.05))
+
+    assert len(coletor.abertos) == 1
+    assert coletor.fechados == []
+
+
+def test_volta_ao_normal_fecha_com_duracao_e_pico():
+    tracker, coletor = montar()
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "immediate_risk", "normal", severidade=3)], T0)
+    tracker.process([evento(1, "immediate_risk", "immediate_risk", severidade=4)],
+                    T0 + timedelta(seconds=2))
+
+    tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                    T0 + timedelta(seconds=5))
+
+    assert len(coletor.fechados) == 1
+    fechado = coletor.fechados[0]
+    assert fechado.duration_seconds == pytest.approx(5.0)
+    assert fechado.peak_severity == 4       # pico, não a severidade de abertura
+    assert fechado.closed_reason == ClosedReason.STATE_EXIT
+
+
+def test_reentrada_dentro_da_janela_reabre_o_mesmo_incidente():
+    tracker, coletor = montar(merge_window_seconds=15.0)
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "immediate_risk", "normal")], T0)
+    tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                    T0 + timedelta(seconds=3))
+
+    tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=10))
+
+    assert len(coletor.abertos) == 1        # não abriu um segundo
+    assert tracker.open_incidents()
+
+
+def test_reentrada_fora_da_janela_abre_incidente_novo():
+    tracker, coletor = montar(merge_window_seconds=15.0)
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "immediate_risk", "normal")], T0)
+    tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                    T0 + timedelta(seconds=3))
+
+    tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=40))
+
+    assert len(coletor.abertos) == 2
+
+
+def test_escalacao_fecha_um_tipo_e_abre_o_outro():
+    tracker, coletor = montar()
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "ergonomically_inadequate", "normal", severidade=2)], T0)
+
+    tracker.process([evento(1, "immediate_risk", "ergonomically_inadequate")],
+                    T0 + timedelta(seconds=2))
+
+    assert [r.type for r in coletor.abertos] == ["ERGONOMIC_RISK", "FALL_RISK"]
+    assert coletor.fechados[0].type == "ERGONOMIC_RISK"
+    assert coletor.fechados[0].closed_reason == ClosedReason.ESCALATED
+
+
+def test_severidade_abaixo_do_limiar_nao_abre_incidente():
+    tracker, coletor = montar(min_severity=3)
+    aquecer(tracker, 1, 20, T0)
+
+    tracker.process([evento(1, "ergonomically_inadequate", "normal", severidade=2)], T0)
+
+    assert coletor.abertos == []
+
+
+def test_track_muito_novo_nao_abre_incidente():
+    tracker, coletor = montar(min_track_frames=15)
+
+    # Só 3 frames de vida: o ByteTrack produz tracks espúrios curtos.
+    aquecer(tracker, 4, 3, T0)
+    tracker.process([evento(4, "immediate_risk", "normal")], T0)
+
+    assert coletor.abertos == []
+
+
+def test_incidentes_de_tracks_diferentes_sao_independentes():
+    tracker, coletor = montar()
+    aquecer(tracker, 1, 20, T0)
+    aquecer(tracker, 2, 20, T0)
+
+    tracker.process([
+        evento(1, "immediate_risk", "normal"),
+        evento(2, "ergonomically_inadequate", "normal", severidade=2),
+    ], T0)
+
+    assert len(coletor.abertos) == 2
+    assert {r.track_id for r in coletor.abertos} == {1, 2}
+
+
+# ----------------------------------------------------------------------
+# Regressão sobre o log medido de cenario2.mp4
+# ----------------------------------------------------------------------
+
+FIXTURE = Path(__file__).parent / "fixtures" / "cenario2_transitions.json"
+
+
+def _reproduzir_cenario2(**overrides):
+    """Replica o log medido de cenario2.mp4 através do tracker.
+
+    Cada frame do vídeo vira uma chamada a process(); os frames sem transição
+    repetem a categoria vigente, que é o que o pipeline real produz.
+    """
+    dados = json.loads(FIXTURE.read_text())
+    fps = dados["fps"]
+    por_frame = {t["frame"]: t for t in dados["transitions"]}
+    vida = {int(k): v for k, v in dados["vida_dos_tracks"].items()}
+
+    parametros = dict(fps=fps, merge_window_seconds=15.0,
+                      min_track_frames=15, evict_after_frames=45)
+    parametros.update(overrides)     # o teste da janela zerada sobrescreve aqui
+    tracker, coletor = montar(**parametros)
+
+    # Frame em que cada track aparece pela primeira vez. A vida do track só diz
+    # quantos frames ele durou, não onde começou; o primeiro frame é deduzido
+    # dela e recuado até a primeira transição registrada, para que nenhuma
+    # transição do log medido seja descartada por um track "ainda ausente".
+    primeira_transicao = {}
+    for t in dados["transitions"]:
+        primeira_transicao.setdefault(t["track"], t["frame"])
+    primeiro_frame = {
+        tid: min(dados["total_frames"] - v + 1,
+                 primeira_transicao.get(tid, dados["total_frames"]))
+        for tid, v in vida.items()
+    }
+    categoria = {tid: "normal" for tid in vida}
+
+    for frame in range(1, dados["total_frames"] + 1):
+        agora = T0 + timedelta(seconds=frame / fps)
+        eventos = []
+        for tid in vida:
+            if frame < primeiro_frame[tid]:
+                continue
+            anterior = categoria[tid]
+            transicao = por_frame.get(frame)
+            if transicao is not None and transicao["track"] == tid:
+                categoria[tid] = transicao["to"]
+            severidade = 0 if categoria[tid] == "normal" else 4
+            eventos.append(evento(tid, categoria[tid], anterior, severidade))
+        tracker.process(eventos, agora)
+
+    tracker.flush(T0 + timedelta(seconds=dados["total_frames"] / fps))
+    return tracker, coletor
+
+
+def test_cenario2_produz_dois_incidentes_para_duas_quedas():
+    """Trava o replay, não a contagem da execução ao vivo.
+
+    Aqui as duas quedas caem dentro da janela de merge (intervalo de 11,6 s em
+    tempo de vídeo) e viram um FALL_RISK só. A execução real do pipeline sobre
+    o mesmo clipe produz DOIS FALL_RISK, porque a janela é medida em tempo de
+    relógio e o processamento estica o intervalo para ~17,9 s. Ver
+    docs/e1b-verificacao.md §1 — não é regressão, são critérios diferentes.
+    """
+    _, coletor = _reproduzir_cenario2()
+
+    tipos = sorted(r.type for r in coletor.abertos)
+    assert tipos == ["ERGONOMIC_RISK", "FALL_RISK"]
+
+
+def test_cenario2_nao_deixa_incidente_orfao():
+    tracker, coletor = _reproduzir_cenario2()
+
+    assert tracker.open_incidents() == {}
+    assert len(coletor.fechados) >= len(coletor.abertos)
+
+
+def test_cenario2_fecha_o_ultimo_episodio_como_pipeline_parado():
+    _, coletor = _reproduzir_cenario2()
+
+    ultimo = coletor.fechados[-1]
+    assert ultimo.closed_reason == ClosedReason.PIPELINE_STOPPED
+
+
+def test_sem_janela_de_merge_o_mesmo_clipe_explode_em_alertas():
+    """Prova que a janela não é enfeite: sem ela, o painel vira rajada."""
+    _, com_janela = _reproduzir_cenario2()
+    _, sem_janela = _reproduzir_cenario2(merge_window_seconds=0.0)
+
+    assert len(sem_janela.abertos) > len(com_janela.abertos)
+
+
+def test_track_espurio_de_doze_frames_nao_vira_incidente():
+    _, coletor = _reproduzir_cenario2()
+
+    # O track 4 vive 12 frames e abriria um FALL_RISK a 3 frames do fim.
+    assert all(r.track_id != 4 for r in coletor.abertos)
+
+
+def test_eviction_fecha_track_que_some_do_quadro():
+    tracker, coletor = montar(evict_after_frames=10)
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "immediate_risk", "normal")], T0)
+
+    # Ninguém mais reporta o track 1: a pessoa saiu do quadro.
+    for i in range(15):
+        tracker.process([], T0 + timedelta(seconds=1 + i * 0.05))
+
+    assert len(coletor.fechados) == 1
+    assert coletor.fechados[0].closed_reason == ClosedReason.TRACK_LOST
+    assert tracker.open_incidents() == {}
+
+
+def test_flush_fecha_o_que_restou_aberto():
+    tracker, coletor = montar()
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "immediate_risk", "normal")], T0)
+
+    tracker.flush(T0 + timedelta(seconds=4))
+
+    assert len(coletor.fechados) == 1
+    assert coletor.fechados[0].closed_reason == ClosedReason.PIPELINE_STOPPED
+    assert coletor.fechados[0].duration_seconds == pytest.approx(4.0)

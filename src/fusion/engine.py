@@ -17,6 +17,7 @@ class PersonEvent:
     epi_violations: list[str] = field(default_factory=list)  # violation labels on this person (no_helmet, …)
     epi_present: list[str] = field(default_factory=list)      # PPE detected on this person (HELMET, VEST, …)
     posture: str = "normal"
+    previous_posture: str = "normal"   # categoria confirmada no frame anterior
     reba_score: int = 1
     action_level: int = 1
     zone_status: str = "outside"

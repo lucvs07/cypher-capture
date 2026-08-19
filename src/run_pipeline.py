@@ -21,9 +21,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Ensure project root is importable regardless of CWD
@@ -33,6 +35,10 @@ import cv2
 import numpy as np
 
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
+from src.notify import (
+    ConsoleIncidentSink, HttpIncidentSink, IncidentTracker,
+    MjpegServer, NotifyConfig, TrackerConfig,
+)
 from src.utils.pose_visualization import draw_epi_boxes
 from src.utils.video import open_capture
 
@@ -58,6 +64,15 @@ def parse_args() -> argparse.Namespace:
                    help="stop after N frames (0 = until source ends / 'q')")
     p.add_argument("--show-epi", action="store_true",
                    help="dev: draw the raw EPI detection boxes from the PPE model")
+    p.add_argument("--camera-id", default=None,
+                   help="identificador desta camera (default: do config)")
+    p.add_argument("--api-url", default=None,
+                   help="base da API, ex. http://localhost:8080/api/v1 "
+                        "(sem isso, os incidentes so sao impressos)")
+    p.add_argument("--stream-port", type=int, default=None,
+                   help="porta do stream MJPEG (default: do config)")
+    p.add_argument("--no-stream", action="store_true",
+                   help="nao sobe o servidor de video ao vivo")
     return p.parse_args()
 
 
@@ -75,6 +90,56 @@ def main() -> None:
 
     pipeline = UnifiedPipeline(config)
     print(f"[zones]  {len(pipeline._zones.get_all())} zone(s) loaded")
+
+    notify_config = NotifyConfig.from_yaml(args.config)
+    if args.camera_id:
+        notify_config.camera_id = args.camera_id
+    if args.api_url:
+        notify_config.api_url = args.api_url
+    if args.stream_port is not None:
+        notify_config.stream_port = args.stream_port
+    if args.no_stream:
+        notify_config.stream_enabled = False
+
+    if notify_config.enabled:
+        uploader = None
+        if os.getenv("CLOUDINARY_CLOUD_NAME"):
+            from src.notify.sink import CloudinaryUploader
+            uploader = CloudinaryUploader()
+            print("[notify] snapshots serao enviados ao Cloudinary")
+        sink = HttpIncidentSink(
+            notify_config.api_url,
+            queue_size=notify_config.queue_size,
+            spill_path=notify_config.spill_path,
+            uploader=uploader,
+        )
+        print(f"[notify] enviando incidentes para {notify_config.api_url} "
+              f"como {notify_config.camera_id} (run {notify_config.run_id})")
+    else:
+        sink = ConsoleIncidentSink()
+        print("[notify] sem api_url: incidentes apenas impressos")
+    sink.start()
+
+    tracker = IncidentTracker(
+        TrackerConfig(
+            camera_id=notify_config.camera_id,
+            run_id=notify_config.run_id,
+            min_severity=notify_config.min_severity,
+            merge_window_seconds=notify_config.merge_window_seconds,
+            evict_after_frames=notify_config.evict_after_frames,
+            min_track_frames=notify_config.min_track_frames,
+            fps=config.target_fps,
+        ),
+        on_open=sink.open,
+        on_close=sink.close,
+    )
+
+    stream = None
+    if notify_config.stream_enabled:
+        stream = MjpegServer(port=notify_config.stream_port)
+        stream.start()
+        pipeline.set_frame_publisher(stream.publish)
+        print(f"[stream] video ao vivo em http://127.0.0.1:{stream.port}/stream")
 
     cap = open_capture(args.source)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 1280
@@ -135,6 +200,9 @@ def main() -> None:
                           f"posture={ev.posture} reba={ev.reba_score}(AL{ev.action_level}) "
                           f"zone={ev.zone_status}/{ev.zone_name or '-'} ppe=[{present}] viol={viol} :: {ev.reason}")
 
+            tracker.process(events, datetime.now(timezone.utc).astimezone(),
+                            frame=annotated)
+
             # Burn a compact HUD onto the saved/displayed frame too
             cv2.putText(annotated, f"{dt_ms:.0f}ms  {fps:.1f}FPS  stride={pipeline._epi_stride}",
                         (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
@@ -148,6 +216,12 @@ def main() -> None:
             if args.max_frames and frame_idx >= args.max_frames:
                 break
     finally:
+        # O flush é o que impede que cada execução deixe incidentes órfãos:
+        # sem ele, cenario2.mp4 encerra com 2 FALL_RISK abertos para sempre.
+        tracker.flush(datetime.now(timezone.utc).astimezone())
+        sink.stop()
+        if stream is not None:
+            stream.stop()
         cap.release()
         if writer is not None:
             writer.release()
