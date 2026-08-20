@@ -9,8 +9,8 @@ Três problemas que o laço de frames não deveria ter de conhecer:
     se estar analisando o passado.
 
 Para fonte ao vivo, os três são resolvidos por uma thread de leitura que
-guarda apenas o frame mais recente (ver ``_LiveReader``). Para arquivo, nada
-disso se aplica: descartar frame mudaria o conteúdo analisado, e fim de
+guarda apenas o frame mais recente (ver ``_loop_leitura``). Para arquivo,
+nada disso se aplica: descartar frame mudaria o conteúdo analisado, e fim de
 arquivo é fim.
 """
 from __future__ import annotations
@@ -153,7 +153,9 @@ class ResilientCapture:
         while not self._parar.is_set():
             cap = self._cap
             if cap is None:
-                return
+                self._reconectar(espera)
+                espera = min(espera * 2, self.backoff_max)
+                continue
 
             ok, frame = cap.read()
             if ok:

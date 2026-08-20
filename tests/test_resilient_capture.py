@@ -299,6 +299,40 @@ def test_ao_vivo_reconecta_quando_a_camera_cai():
         cap.release()
 
 
+def test_ao_vivo_continua_tentando_reconectar_apos_falhas_no_reabrir():
+    """Falhar ao reabrir não pode matar a thread de leitura: ela precisa
+    seguir tentando com backoff até a câmera realmente voltar, em vez de
+    desistir depois da primeira tentativa malsucedida."""
+    # A abertura inicial funciona; as duas primeiras tentativas de reabrir
+    # falham (isOpened=False); a partir da terceira, funciona.
+    padrao_abertura = [True, False, False]
+    chamadas: list[CapturaAoVivoFake] = []
+
+    def fabrica():
+        indice = len(chamadas)
+        abre = padrao_abertura[indice] if indice < len(padrao_abertura) else True
+        nova = CapturaAoVivoFake(abre=abre)
+        chamadas.append(nova)
+        return nova
+
+    cap = ResilientCapture("rtsp://10.0.0.7/stream", factory=fabrica,
+                           backoff_base=0.01, backoff_max=0.02)
+    cap.open()
+    try:
+        assert _esperar(lambda: chamadas[0].entregues > 0)
+
+        chamadas[0].falhar = True
+
+        # Duas tentativas de reabrir falham antes da terceira funcionar:
+        # reconnects precisa continuar crescendo em vez de travar em 1.
+        assert _esperar(lambda: cap.reconnects >= 3)
+        # E a captura precisa voltar a ficar operante, não morrer em silêncio.
+        assert _esperar(lambda: cap.isOpened() is True)
+        assert _esperar(lambda: len(chamadas) >= 4 and chamadas[-1].entregues > 0)
+    finally:
+        cap.release()
+
+
 def test_reconexao_nao_derruba_o_processo_quando_a_camera_nao_volta():
     def fabrica():
         return CapturaAoVivoFake(abre=False)
