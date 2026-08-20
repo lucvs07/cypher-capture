@@ -110,11 +110,11 @@ def test_fim_de_arquivo_encerra_em_vez_de_reconectar():
 
 def test_expoe_dimensoes_e_fps_da_fonte():
     cap = ResilientCapture("clipe.mp4",
-                           factory=lambda: CapturaFake(largura=1280, altura=720, fps=25.0))
+                           factory=lambda: CapturaFake(largura=1920, altura=1080, fps=25.0))
     cap.open()
 
-    assert cap.width == 1280
-    assert cap.height == 720
+    assert cap.width == 1920
+    assert cap.height == 1080
     assert cap.fps == pytest.approx(25.0)
     cap.release()
 
