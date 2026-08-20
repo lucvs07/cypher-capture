@@ -54,3 +54,10 @@ notify:
   spill_path: outputs/incidents.jsonl
   stream_port: 8090
   stream_enabled: true
+
+capture:
+  rtsp_transport: tcp                 # UDP sob carga gera artefato lido como movimento
+  read_timeout_ms: 5000               # declarado como stimeout E timeout (versoes de FFmpeg)
+  backoff_base_seconds: 0.5
+  backoff_max_seconds: 10
+  cache_path: outputs/camera-config-cache.json
