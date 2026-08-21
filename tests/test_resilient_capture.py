@@ -10,8 +10,13 @@ Nenhum teste aqui abre câmera ou arquivo: a captura é injetada.
 """
 from __future__ import annotations
 
+import threading
+import time
+
+import numpy as np
 import pytest
 
+from src.capture.resilient import ResilientCapture
 from src.utils.video import is_live_source
 
 
@@ -31,11 +36,6 @@ def test_reconhece_arquivo(fonte):
 
 def test_caminho_de_diretorio_de_imagens_nao_e_ao_vivo():
     assert is_live_source("data/imagens/") is False
-
-
-import numpy as np
-
-from src.capture.resilient import ResilientCapture
 
 
 class CapturaFake:
@@ -147,10 +147,6 @@ def test_release_libera_a_captura_subjacente():
 
     assert fake.liberada is True
     assert cap.isOpened() is False
-
-
-import threading
-import time
 
 
 class CapturaAoVivoFake:

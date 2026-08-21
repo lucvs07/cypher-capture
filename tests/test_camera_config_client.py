@@ -148,6 +148,18 @@ def test_camera_desativada_aborta_e_nao_cai_para_o_cache(tmp_path):
         desativada.fetch("CAM-01", AMBIENTE)
 
 
+def test_camera_desativada_via_200_tambem_aborta(tmp_path):
+    # O backend ainda não implementa o 409 dedicado nesta integração: um dia
+    # pode simplesmente devolver 200 com "ativa": false no corpo. A garantia
+    # de "nunca sobe câmera desativada" não pode depender de qual status HTTP
+    # o servidor escolheu usar para dizer isso.
+    ativa_false = cliente(tmp_path, TransporteFake(
+        status=200, corpo={**CORPO, "ativa": False}))
+
+    with pytest.raises(CameraDisabledError):
+        ativa_false.fetch("CAM-01", AMBIENTE)
+
+
 def test_camera_nao_cadastrada_aborta(tmp_path):
     nao_existe = cliente(tmp_path, TransporteFake(status=404, corpo={}))
 

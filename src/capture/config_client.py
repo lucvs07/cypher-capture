@@ -8,8 +8,13 @@ de requisição.
 """
 from __future__ import annotations
 
+import json
+import logging
 import re
-from typing import Mapping, Optional
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Callable, Mapping, Optional, Protocol
 
 PLACEHOLDER = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
@@ -46,13 +51,6 @@ def expand_placeholders(texto: Optional[str], env: Mapping[str, str]) -> Optiona
 
     return PLACEHOLDER.sub(lambda m: env[m.group(1)], texto)
 
-
-import json
-import logging
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Callable, Optional, Protocol
 
 log = logging.getLogger(__name__)
 
@@ -128,13 +126,15 @@ class CameraConfigClient:
         bruto = self._da_api(camera_id)
         if bruto is not None:
             self._gravar_cache(camera_id, bruto)
-            return self._montar(bruto, env, origem="api", idade=0.0)
+            return self._montar(bruto, env, origem="api", idade=0.0,
+                                camera_id=camera_id)
 
         do_cache = self._do_cache(camera_id)
         if do_cache is None:
             return None
         bruto, idade = do_cache
-        return self._montar(bruto, env, origem="cache", idade=idade)
+        return self._montar(bruto, env, origem="cache", idade=idade,
+                            camera_id=camera_id)
 
     # ------------------------------------------------------------------
     # Internos
@@ -160,8 +160,9 @@ class CameraConfigClient:
         log.warning("Config de %s: API respondeu %s", camera_id, status)
         return None
 
-    def _montar(self, bruto: dict, env, origem: str, idade: float) -> CameraConfig:
-        return CameraConfig(
+    def _montar(self, bruto: dict, env, origem: str, idade: float,
+                camera_id: str) -> CameraConfig:
+        config = CameraConfig(
             codigo=bruto.get("codigo", ""),
             nome=bruto.get("nome", ""),
             estacao_id=bruto.get("estacaoId", ""),
@@ -171,6 +172,13 @@ class CameraConfigClient:
             origem=origem,
             idade_segundos=idade,
         )
+        if not config.ativa:
+            # Não depende do backend responder 409: um "200 {ativa: false}"
+            # (ou um registro em cache que ficou obsoleto) tem de abortar do
+            # mesmo jeito, nunca virar uma CameraConfig usável.
+            raise CameraDisabledError(
+                f"Camera desativada no cadastro: {camera_id}")
+        return config
 
     def _gravar_cache(self, camera_id: str, bruto: dict) -> None:
         # Guarda a fonte AINDA com placeholder: o cache é um arquivo em disco,

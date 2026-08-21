@@ -65,6 +65,13 @@ class ResilientCapture:
         self._serie = 0
         self._serie_lida = 0
 
+        # Cache preenchido em open(), antes da thread de leitura começar —
+        # ler estas props do OpenCV depois disso correria com o read() da
+        # thread sobre o mesmo VideoCapture.
+        self._width: int = LARGURA_DEFAULT
+        self._height: int = ALTURA_DEFAULT
+        self._fps: float = FPS_DEFAULT
+
     # ------------------------------------------------------------------
     # Ciclo de vida
     # ------------------------------------------------------------------
@@ -75,6 +82,17 @@ class ResilientCapture:
             raise RuntimeError(f"Nao foi possivel abrir a fonte de video '{self.source}'")
         self._cap = cap
         self.state = "conectado"
+
+        # Lidas aqui, no thread principal, antes de qualquer thread de
+        # leitura existir — depois disso get() correria com read() sobre o
+        # mesmo VideoCapture (ver Fix 3 da revisão final). Uma reconexão
+        # posterior troca o VideoCapture por baixo, mas estes valores
+        # propositalmente não são atualizados: o writer de vídeo já foi
+        # dimensionado com os originais, e reler get() em plena reconexão é
+        # exatamente a corrida que este cache elimina.
+        self._width = self._inteiro(cv2.CAP_PROP_FRAME_WIDTH, LARGURA_DEFAULT)
+        self._height = self._inteiro(cv2.CAP_PROP_FRAME_HEIGHT, ALTURA_DEFAULT)
+        self._fps = self._fps_atual()
 
         if self.live:
             self._preparar_ao_vivo(cap)
@@ -97,13 +115,27 @@ class ResilientCapture:
         return self._read_arquivo()
 
     def release(self) -> None:
+        pode_liberar_cap = True
         if self.live and getattr(self, "_parar", None) is not None:
             self._parar.set()
             with self._novo:
                 self._novo.notify_all()
             if self._thread is not None:
                 self._thread.join(timeout=2.0)
-        if self._cap is not None:
+                if self._thread.is_alive():
+                    # A thread ainda pode estar dentro de um cap.read() ou
+                    # time.sleep() de backoff (read_timeout_ms/backoff_max
+                    # somados passam facilmente do timeout do join). Chamar
+                    # self._cap.release() aqui correria com o uso dela do
+                    # mesmo VideoCapture. É uma thread daemon: o encerramento
+                    # do processo cuida da limpeza.
+                    pode_liberar_cap = False
+                    log.warning(
+                        "Thread de leitura de '%s' nao parou a tempo; "
+                        "captura subjacente NAO sera liberada aqui para "
+                        "evitar corrida com um read() ainda em andamento",
+                        self.source)
+        if pode_liberar_cap and self._cap is not None:
             self._cap.release()
             self._cap = None
         if self.state != "encerrado":
@@ -199,7 +231,7 @@ class ResilientCapture:
         self._preparar_ao_vivo(nova)
         self._cap = nova
         self.state = "conectado"
-        log.info("Fonte '%s' reconectada", self.source)
+        log.warning("Fonte '%s' reconectada", self.source)
 
     # ------------------------------------------------------------------
     # Metadados
@@ -207,21 +239,24 @@ class ResilientCapture:
 
     @property
     def width(self) -> int:
-        return self._inteiro(cv2.CAP_PROP_FRAME_WIDTH, LARGURA_DEFAULT)
+        return self._width
 
     @property
     def height(self) -> int:
-        return self._inteiro(cv2.CAP_PROP_FRAME_HEIGHT, ALTURA_DEFAULT)
+        return self._height
 
     @property
     def fps(self) -> float:
-        if self._cap is None:
-            return FPS_DEFAULT
-        valor = self._cap.get(cv2.CAP_PROP_FPS)
-        return valor if valor and valor > 0 else FPS_DEFAULT
+        return self._fps
 
     def _inteiro(self, prop: int, default: int) -> int:
         if self._cap is None:
             return default
         valor = int(self._cap.get(prop) or 0)
         return valor if valor > 0 else default
+
+    def _fps_atual(self) -> float:
+        if self._cap is None:
+            return FPS_DEFAULT
+        valor = self._cap.get(cv2.CAP_PROP_FPS)
+        return valor if valor and valor > 0 else FPS_DEFAULT

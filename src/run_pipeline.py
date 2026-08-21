@@ -35,7 +35,9 @@ import cv2
 import numpy as np
 
 from src.capture import (
-    CameraConfigClient, CaptureConfig, ResilientCapture, aplicar_opcoes_ffmpeg,
+    CameraConfigClient, CameraDisabledError, CameraNotRegisteredError,
+    CaptureConfig, MissingCredentialError, ResilientCapture,
+    aplicar_opcoes_ffmpeg,
 )
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
 from src.notify import (
@@ -43,7 +45,23 @@ from src.notify import (
     MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
-from src.utils.video import open_capture
+
+
+def resolver_config_remota(cliente: CameraConfigClient, camera_id: str,
+                            env, explicit_source: bool):
+    """Busca a config remota; se falhar e houver --source, cede a ele em vez
+    de derrubar o processo — --source existe para depurar exatamente essa
+    situação (cadastro indisponivel, camera desativada, credencial ausente).
+    """
+    try:
+        return cliente.fetch(camera_id, env)
+    except (CameraDisabledError, CameraNotRegisteredError,
+            MissingCredentialError) as erro:
+        if explicit_source:
+            print(f"[config] cadastro de {camera_id} indisponivel ({erro}); "
+                  f"seguindo com --source")
+            return None
+        raise SystemExit(f"[config] {erro}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,7 +122,8 @@ def main() -> None:
     if args.camera_id and args.api_url:
         cliente = CameraConfigClient(args.api_url,
                                      cache_path=capture_config.cache_path)
-        config_remota = cliente.fetch(args.camera_id, os.environ)
+        config_remota = resolver_config_remota(
+            cliente, args.camera_id, os.environ, explicit_source=bool(args.source))
 
     if config_remota is not None:
         if args.source:
@@ -138,7 +157,8 @@ def main() -> None:
     if args.no_stream:
         notify_config.stream_enabled = False
 
-    if config_remota is not None and config_remota.stream_port:
+    if (args.stream_port is None and config_remota is not None
+            and not args.source and config_remota.stream_port):
         notify_config.stream_port = config_remota.stream_port
 
     if notify_config.enabled:
