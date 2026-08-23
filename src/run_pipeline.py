@@ -34,19 +34,43 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import cv2
 import numpy as np
 
+from src.capture import (
+    CameraConfigClient, CameraDisabledError, CameraNotRegisteredError,
+    CaptureConfig, MissingCredentialError, ResilientCapture,
+    aplicar_opcoes_ffmpeg,
+)
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
 from src.notify import (
     ConsoleIncidentSink, HttpIncidentSink, IncidentTracker,
     MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
-from src.utils.video import open_capture
+
+
+def resolver_config_remota(cliente: CameraConfigClient, camera_id: str,
+                            env, explicit_source: bool):
+    """Busca a config remota; se falhar e houver --source, cede a ele em vez
+    de derrubar o processo — --source existe para depurar exatamente essa
+    situação (cadastro indisponivel, camera desativada, credencial ausente).
+    """
+    try:
+        return cliente.fetch(camera_id, env)
+    except (CameraDisabledError, CameraNotRegisteredError,
+            MissingCredentialError) as erro:
+        if explicit_source:
+            print(f"[config] cadastro de {camera_id} indisponivel ({erro}); "
+                  f"seguindo com --source")
+            return None
+        raise SystemExit(f"[config] {erro}")
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Cypher — unified EPI + pose pipeline")
-    p.add_argument("--source", required=True,
-                   help="webcam index (e.g. 0) | video path | RTSP URL")
+    p.add_argument("--source", default=None,
+                   help="webcam index (e.g. 0) | video path | RTSP URL. "
+                        "Opcional quando --camera-id é informado: nesse caso a "
+                        "fonte vem do cadastro. Se os dois forem passados, "
+                        "--source vence.")
     p.add_argument("--config", default="config/pose_config.yaml",
                    help="pose_config.yaml path (default: config/pose_config.yaml)")
     p.add_argument("--zones", default=None,
@@ -88,6 +112,38 @@ def main() -> None:
     print(f"[config] device={config.device}  pose={config.pose_model_path}  epi={config.epi_model_path}")
     print(f"[config] zones={config.zones_config}  target_fps={config.target_fps}  budget={config.max_latency_ms:.0f}ms")
 
+    capture_config = CaptureConfig.from_yaml(args.config)
+    aplicar_opcoes_ffmpeg(capture_config, os.environ)
+
+    fonte = args.source
+    origem_da_fonte = "--source"
+    config_remota = None
+
+    if args.camera_id and args.api_url:
+        cliente = CameraConfigClient(args.api_url,
+                                     cache_path=capture_config.cache_path)
+        config_remota = resolver_config_remota(
+            cliente, args.camera_id, os.environ, explicit_source=bool(args.source))
+
+    if config_remota is not None:
+        if args.source:
+            print(f"[config] --source vence o cadastro de {args.camera_id} "
+                  f"(depuracao contra arquivo)")
+        else:
+            fonte = config_remota.fonte
+            origem_da_fonte = ("cadastro" if not config_remota.do_cache
+                               else f"cache de {config_remota.idade_segundos / 3600:.1f}h")
+    elif args.camera_id and not args.source:
+        print(f"[config] cadastro indisponivel e sem cache para {args.camera_id}; "
+              f"informe --source")
+
+    if not fonte:
+        p_erro = ("Informe --source, ou --camera-id com --api-url apontando "
+                  "para uma camera cadastrada.")
+        raise SystemExit(p_erro)
+
+    print(f"[config] fonte={fonte} (origem: {origem_da_fonte})")
+
     pipeline = UnifiedPipeline(config)
     print(f"[zones]  {len(pipeline._zones.get_all())} zone(s) loaded")
 
@@ -100,6 +156,10 @@ def main() -> None:
         notify_config.stream_port = args.stream_port
     if args.no_stream:
         notify_config.stream_enabled = False
+
+    if (args.stream_port is None and config_remota is not None
+            and not args.source and config_remota.stream_port):
+        notify_config.stream_port = config_remota.stream_port
 
     if notify_config.enabled:
         uploader = None
@@ -141,10 +201,14 @@ def main() -> None:
         pipeline.set_frame_publisher(stream.publish)
         print(f"[stream] video ao vivo em http://127.0.0.1:{stream.port}/stream")
 
-    cap = open_capture(args.source)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 1280
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 720
-    src_fps = cap.get(cv2.CAP_PROP_FPS) or config.target_fps
+    cap = ResilientCapture(
+        fonte,
+        backoff_base=capture_config.backoff_base_seconds,
+        backoff_max=capture_config.backoff_max_seconds,
+    ).open()
+    width = cap.width
+    height = cap.height
+    src_fps = cap.fps
 
     writer = None
     if args.output:
@@ -166,7 +230,12 @@ def main() -> None:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                break
+                if cap.state == "encerrado":
+                    break
+                # Câmera ao vivo sem frame novo (ou reconectando): o laço
+                # continua girando em vez de encerrar a execução.
+                time.sleep(0.005)
+                continue
 
             t0 = time.perf_counter()
             annotated, events = pipeline.process_frame(frame)
