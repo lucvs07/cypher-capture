@@ -19,6 +19,7 @@ def test_valores_padrao_desligam_a_notificacao(tmp_path):
     notify = NotifyConfig.from_yaml(str(config))
 
     assert notify.api_url is None
+    assert notify.api_key_env is None
     assert notify.enabled is False
     assert notify.camera_id == "CAM-01"
     assert notify.merge_window_seconds == 15.0
@@ -34,6 +35,7 @@ def test_le_a_secao_notify(tmp_path):
         notify:
           camera_id: CAM-03
           api_url: http://localhost:8080/api/v1
+          api_key_env: CYPHER_KEY_CAM03
           min_severity: 3
           merge_window_seconds: 20
           evict_after_frames: 60
@@ -49,6 +51,7 @@ def test_le_a_secao_notify(tmp_path):
     assert notify.enabled is True
     assert notify.camera_id == "CAM-03"
     assert notify.api_url == "http://localhost:8080/api/v1"
+    assert notify.api_key_env == "CYPHER_KEY_CAM03"
     assert notify.min_severity == 3
     assert notify.merge_window_seconds == 20
     assert notify.queue_size == 128
@@ -75,3 +78,18 @@ def test_cada_execucao_tem_run_id_proprio(tmp_path):
 
     assert a.run_id != b.run_id
     assert len(a.run_id) >= 6
+
+
+def test_le_api_key_env_isoladamente(tmp_path):
+    config = tmp_path / "com_chave.yaml"
+    config.write_text(textwrap.dedent("""
+        notify:
+          camera_id: CAM-01
+          api_key_env: CYPHER_KEY_CAM01
+    """))
+
+    notify = NotifyConfig.from_yaml(str(config))
+
+    assert notify.api_key_env == "CYPHER_KEY_CAM01"
+    # api_url continua None: os dois campos sao independentes um do outro.
+    assert notify.api_url is None

@@ -21,6 +21,7 @@ class NotifyConfig:
 
     camera_id: str = "CAM-01"
     api_url: Optional[str] = None
+    api_key_env: Optional[str] = None   # nome da env var; o valor nunca fica aqui
     min_severity: int = 2
     merge_window_seconds: float = 15.0
     evict_after_frames: int = 45
