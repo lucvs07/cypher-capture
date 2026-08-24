@@ -42,7 +42,7 @@ from src.capture import (
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
 from src.notify import (
     ConsoleIncidentSink, HttpIncidentSink, IncidentTracker,
-    MjpegServer, NotifyConfig, TrackerConfig,
+    MissingApiKeyError, MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
 
@@ -167,14 +167,20 @@ def main() -> None:
             from src.notify.sink import CloudinaryUploader
             uploader = CloudinaryUploader()
             print("[notify] snapshots serao enviados ao Cloudinary")
-        sink = HttpIncidentSink(
-            notify_config.api_url,
-            queue_size=notify_config.queue_size,
-            spill_path=notify_config.spill_path,
-            uploader=uploader,
-        )
+        try:
+            sink = HttpIncidentSink(
+                notify_config.api_url,
+                queue_size=notify_config.queue_size,
+                spill_path=notify_config.spill_path,
+                uploader=uploader,
+                api_key_env=notify_config.api_key_env,
+            )
+        except MissingApiKeyError as erro:
+            raise SystemExit(f"[notify] {erro}")
         print(f"[notify] enviando incidentes para {notify_config.api_url} "
               f"como {notify_config.camera_id} (run {notify_config.run_id})")
+        if notify_config.api_key_env:
+            print(f"[notify] X-Cypher-Key resolvido via {notify_config.api_key_env}")
     else:
         sink = ConsoleIncidentSink()
         print("[notify] sem api_url: incidentes apenas impressos")

@@ -10,7 +10,7 @@ import yaml
 
 from .incident import ClosedReason, IncidentReport, POSTURE_TO_TYPE, build_incident_key
 from .mjpeg import MjpegServer
-from .sink import ConsoleIncidentSink, HttpIncidentSink
+from .sink import ConsoleIncidentSink, HttpIncidentSink, MissingApiKeyError
 from .tracker import IncidentTracker, TrackerConfig
 
 
@@ -52,6 +52,7 @@ __all__ = [
     "HttpIncidentSink",
     "IncidentReport",
     "IncidentTracker",
+    "MissingApiKeyError",
     "MjpegServer",
     "NotifyConfig",
     "POSTURE_TO_TYPE",
