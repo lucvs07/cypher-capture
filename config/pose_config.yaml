@@ -46,6 +46,12 @@ notify:
   camera_id: CAM-01
   # Sem api_url, o pipeline apenas imprime os incidentes (comportamento antigo).
   # api_url: http://localhost:8080/api/v1
+  # Nome da variavel de ambiente com a chave desta camera (nunca a chave em
+  # texto puro aqui — o valor vem do .env do host, gitignorado). Se esta
+  # linha ficar comentada e CYPHER_GESTOR_USER/CYPHER_GESTOR_PASSWORD
+  # estiverem no .env, o pipeline provisiona a propria chave sozinho no
+  # primeiro boot (ver .env.example).
+  # api_key_env: CYPHER_KEY_CAM01
   min_severity: 2
   merge_window_seconds: 15            # calibrado em cenario2.mp4 (spec §4.1.2)
   evict_after_frames: 45              # track sumido por N frames = fecha como TRACK_LOST

@@ -12,11 +12,12 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import pytest
 
 from src.notify.incident import ClosedReason, IncidentReport
-from src.notify.sink import HttpIncidentSink
+from src.notify.sink import HttpIncidentSink, MissingApiKeyError
 
 BRT = timezone(timedelta(hours=-3))
 T0 = datetime(2026, 8, 10, 14, 0, 0, tzinfo=BRT)
@@ -50,24 +51,24 @@ def relatorio(chave: str, severidade: int = 4) -> IncidentReport:
 
 
 class TransporteFake:
-    """Registra chamadas e falha sob demanda."""
+    """Registra chamadas (inclusive os headers recebidos) e falha sob demanda."""
 
     def __init__(self, falhas_ate: int = 0) -> None:
-        self.posts: list[tuple[str, dict]] = []
-        self.patches: list[tuple[str, dict]] = []
+        self.posts: list[tuple[str, dict, Optional[dict]]] = []
+        self.patches: list[tuple[str, dict, Optional[dict]]] = []
         self.falhas_ate = falhas_ate
         self.tentativas = 0
         self.entregou = threading.Event()
 
-    def post(self, url: str, payload: dict) -> None:
+    def post(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
         self.tentativas += 1
         if self.tentativas <= self.falhas_ate:
             raise ConnectionError("API indisponivel")
-        self.posts.append((url, payload))
+        self.posts.append((url, payload, headers))
         self.entregou.set()
 
-    def patch(self, url: str, payload: dict) -> None:
-        self.patches.append((url, payload))
+    def patch(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
+        self.patches.append((url, payload, headers))
         self.entregou.set()
 
 
@@ -81,10 +82,13 @@ def test_envia_abertura_para_o_endpoint_de_incidentes():
     finally:
         sink.stop()
 
-    url, payload = transporte.posts[0]
+    url, payload, headers = transporte.posts[0]
     assert url == "http://api/api/v1/incidents"
     assert payload["incidentKey"] == "k1"
     assert payload["severity"] == 4
+    # Sem api_key_env configurado: nenhum header, byte a byte o comportamento
+    # de antes desta mudanca.
+    assert headers is None
 
 
 def test_envia_fechamento_para_o_endpoint_da_chave():
@@ -101,18 +105,19 @@ def test_envia_fechamento_para_o_endpoint_da_chave():
     finally:
         sink.stop()
 
-    url, payload = transporte.patches[0]
+    url, payload, headers = transporte.patches[0]
     assert url == "http://api/api/v1/incidents/k1"
     assert payload["durationSeconds"] == 6.0
+    assert headers is None
 
 
 def test_nao_bloqueia_quem_chama():
     """O laço de frames tem 200ms de orcamento: enfileirar precisa ser barato."""
     class TransporteLento:
-        def post(self, url, payload):
+        def post(self, url, payload, headers=None):
             threading.Event().wait(0.5)
 
-        def patch(self, url, payload):
+        def patch(self, url, payload, headers=None):
             pass
 
     sink = HttpIncidentSink("http://api/api/v1", transport=TransporteLento())
@@ -190,11 +195,11 @@ def test_fila_cheia_descarta_o_menos_severo_e_nunca_a_queda():
             self.liberar = threading.Event()
             self.recebidos = []
 
-        def post(self, url, payload):
+        def post(self, url, payload, headers=None):
             self.liberar.wait(timeout=5)
             self.recebidos.append(payload)
 
-        def patch(self, url, payload):
+        def patch(self, url, payload, headers=None):
             pass
 
     transporte = TransporteTravado()
@@ -245,11 +250,11 @@ def test_parada_grava_em_disco_o_que_nao_deu_tempo_de_entregar():
     liberado = threading.Event()
 
     class TransporteQueTrava:
-        def post(self, url, payload):
+        def post(self, url, payload, headers=None):
             liberado.wait(timeout=5)
             raise ConnectionError("API indisponivel")
 
-        def patch(self, url, payload):
+        def patch(self, url, payload, headers=None):
             pass
 
     sink = HttpIncidentSink("http://api/api/v1", transport=TransporteQueTrava(),
@@ -268,3 +273,102 @@ def test_parada_grava_em_disco_o_que_nao_deu_tempo_de_entregar():
     spill = __import__("pathlib").Path("outputs/incidents.jsonl")
     gravados = [json.loads(l) for l in spill.read_text().splitlines() if l.strip()]
     assert [g["incident_key"] for g in gravados] == ["em-voo"]
+
+
+def test_com_api_key_env_manda_x_cypher_key_no_post_e_no_patch():
+    transporte = TransporteFake()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte,
+                            api_key_env="CYPHER_KEY_CAM01",
+                            env={"CYPHER_KEY_CAM01": "chave-secreta"})
+    sink.start()
+    try:
+        sink.open(relatorio("k1"))
+        assert transporte.entregou.wait(timeout=2)
+        transporte.entregou.clear()
+
+        rel = relatorio("k1")
+        rel.ended_at = T0 + timedelta(seconds=6)
+        rel.duration_seconds = 6.0
+        rel.closed_reason = ClosedReason.STATE_EXIT
+        sink.close(rel)
+        assert transporte.entregou.wait(timeout=2)
+    finally:
+        sink.stop()
+
+    assert transporte.posts[0][2] == {"X-Cypher-Key": "chave-secreta"}
+    assert transporte.patches[0][2] == {"X-Cypher-Key": "chave-secreta"}
+
+
+def test_o_patch_de_snapshot_tambem_leva_o_header():
+    class UploaderFake:
+        def upload(self, frame, public_id):
+            return f"https://cdn/{public_id}.jpg"
+
+    transporte = TransporteFake()
+    rel = relatorio("k1")
+    rel.snapshot_frame = object()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte,
+                            uploader=UploaderFake(),
+                            api_key_env="CYPHER_KEY_CAM01",
+                            env={"CYPHER_KEY_CAM01": "chave-secreta"})
+    sink.start()
+    try:
+        sink.open(rel)
+        for _ in range(100):
+            if len(transporte.patches) >= 1:
+                break
+            threading.Event().wait(0.02)
+    finally:
+        sink.stop()
+
+    assert transporte.patches[0][2] == {"X-Cypher-Key": "chave-secreta"}
+
+
+def test_api_key_env_configurada_mas_ausente_do_ambiente_falha_alto():
+    with pytest.raises(MissingApiKeyError) as erro:
+        HttpIncidentSink("http://api/api/v1", api_key_env="CYPHER_KEY_CAM01", env={})
+
+    assert erro.value.env_var == "CYPHER_KEY_CAM01"
+    assert "CYPHER_KEY_CAM01" in str(erro.value)
+
+
+def test_api_key_env_com_valor_vazio_conta_como_ausente():
+    # Uma chave vazia mandaria um header sintaticamente presente mas inutil —
+    # o backend rejeitaria com um 401 obscuro em vez do erro claro daqui.
+    with pytest.raises(MissingApiKeyError):
+        HttpIncidentSink("http://api/api/v1", api_key_env="CYPHER_KEY_CAM01",
+                         env={"CYPHER_KEY_CAM01": ""})
+
+
+def test_api_key_env_none_nao_consulta_o_ambiente_e_nao_falha():
+    # env={} sozinho provaria pouco (a variavel poderia nao existir por
+    # acidente); o que este teste protege e que api_key_env=None nem chega a
+    # olhar o ambiente — a construcao tem que suceder mesmo com env vazio,
+    # porque "desligado" e um estado valido, nao um erro de configuracao.
+    transporte = TransporteFake()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte, env={})
+    sink.start()
+    try:
+        sink.open(relatorio("k1"))
+        assert transporte.entregou.wait(timeout=2)
+    finally:
+        sink.stop()
+
+    assert transporte.posts[0][2] is None
+
+
+def test_api_key_explicita_vence_api_key_env():
+    # api_key vindo do provisionamento automatico (ApiKeyProvisioner) tem
+    # prioridade sobre api_key_env -- os dois nunca sao resolvidos juntos,
+    # e a variavel de ambiente nem chega a ser consultada.
+    transporte = TransporteFake()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte,
+                            api_key="cam-key-provisionada", api_key_env="CYPHER_KEY_CAM01", env={})
+    sink.start()
+    try:
+        sink.open(relatorio("k1"))
+        assert transporte.entregou.wait(timeout=2)
+    finally:
+        sink.stop()
+
+    assert transporte.posts[0][2] == {"X-Cypher-Key": "cam-key-provisionada"}

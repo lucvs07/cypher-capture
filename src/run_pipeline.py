@@ -35,14 +35,15 @@ import cv2
 import numpy as np
 
 from src.capture import (
-    CameraConfigClient, CameraDisabledError, CameraNotRegisteredError,
-    CaptureConfig, MissingCredentialError, ResilientCapture,
+    ApiKeyProvisioner, ApiKeyProvisioningError, CameraConfigClient,
+    CameraDisabledError, CameraNotRegisteredError, CaptureConfig,
+    MissingCredentialError, MissingGestorCredentialError, ResilientCapture,
     aplicar_opcoes_ffmpeg,
 )
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
 from src.notify import (
     ConsoleIncidentSink, HttpIncidentSink, IncidentTracker,
-    MjpegServer, NotifyConfig, TrackerConfig,
+    MissingApiKeyError, MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
 
@@ -167,14 +168,35 @@ def main() -> None:
             from src.notify.sink import CloudinaryUploader
             uploader = CloudinaryUploader()
             print("[notify] snapshots serao enviados ao Cloudinary")
-        sink = HttpIncidentSink(
-            notify_config.api_url,
-            queue_size=notify_config.queue_size,
-            spill_path=notify_config.spill_path,
-            uploader=uploader,
-        )
+
+        # Provisionamento automatico: so entra em jogo quando api_key_env NAO
+        # foi configurado manualmente E ha credencial de gestor no ambiente —
+        # sem os dois, o comportamento continua identico ao de antes (sem
+        # header nenhum, "desligado" e um estado valido).
+        chave_provisionada = None
+        if not notify_config.api_key_env and os.getenv("CYPHER_GESTOR_USER"):
+            provisioner = ApiKeyProvisioner(notify_config.api_url)
+            try:
+                chave_provisionada = provisioner.obter(notify_config.camera_id, os.environ)
+            except (ApiKeyProvisioningError, MissingGestorCredentialError) as erro:
+                raise SystemExit(f"[notify] {erro}")
+            print(f"[notify] X-Cypher-Key provisionada automaticamente para {notify_config.camera_id}")
+
+        try:
+            sink = HttpIncidentSink(
+                notify_config.api_url,
+                queue_size=notify_config.queue_size,
+                spill_path=notify_config.spill_path,
+                uploader=uploader,
+                api_key_env=notify_config.api_key_env,
+                api_key=chave_provisionada,
+            )
+        except MissingApiKeyError as erro:
+            raise SystemExit(f"[notify] {erro}")
         print(f"[notify] enviando incidentes para {notify_config.api_url} "
               f"como {notify_config.camera_id} (run {notify_config.run_id})")
+        if notify_config.api_key_env:
+            print(f"[notify] X-Cypher-Key resolvido via {notify_config.api_key_env}")
     else:
         sink = ConsoleIncidentSink()
         print("[notify] sem api_url: incidentes apenas impressos")

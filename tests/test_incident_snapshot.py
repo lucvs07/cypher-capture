@@ -51,10 +51,10 @@ class TransporteFake:
         self.patches: list[tuple[str, dict]] = []
         self.patch_chegou = threading.Event()
 
-    def post(self, url, payload):
+    def post(self, url, payload, headers=None):
         self.posts.append((url, payload))
 
-    def patch(self, url, payload):
+    def patch(self, url, payload, headers=None):
         self.patches.append((url, payload))
         self.patch_chegou.set()
 

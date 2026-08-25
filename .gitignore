@@ -48,6 +48,11 @@ outputs/captures/*
 # Spill de incidentes não entregues à API (fila de reenvio, drenada na subida)
 outputs/incidents.jsonl
 
+# Cache de config remota e de apiKey provisionada — a segunda carrega um
+# segredo de verdade, nunca deve ir para o repositório.
+outputs/camera-config-cache.json
+outputs/apikey-cache.json
+
 # IDE
 .vscode/
 .idea/

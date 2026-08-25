@@ -10,7 +10,7 @@ import yaml
 
 from .incident import ClosedReason, IncidentReport, POSTURE_TO_TYPE, build_incident_key
 from .mjpeg import MjpegServer
-from .sink import ConsoleIncidentSink, HttpIncidentSink
+from .sink import ConsoleIncidentSink, HttpIncidentSink, MissingApiKeyError
 from .tracker import IncidentTracker, TrackerConfig
 
 
@@ -21,6 +21,7 @@ class NotifyConfig:
 
     camera_id: str = "CAM-01"
     api_url: Optional[str] = None
+    api_key_env: Optional[str] = None   # nome da env var; o valor nunca fica aqui
     min_severity: int = 2
     merge_window_seconds: float = 15.0
     evict_after_frames: int = 45
@@ -51,6 +52,7 @@ __all__ = [
     "HttpIncidentSink",
     "IncidentReport",
     "IncidentTracker",
+    "MissingApiKeyError",
     "MjpegServer",
     "NotifyConfig",
     "POSTURE_TO_TYPE",

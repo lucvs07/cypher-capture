@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Mapping, Optional, Protocol
 
 from .incident import IncidentReport
 
@@ -24,8 +25,8 @@ log = logging.getLogger(__name__)
 
 
 class Transport(Protocol):
-    def post(self, url: str, payload: dict) -> None: ...
-    def patch(self, url: str, payload: dict) -> None: ...
+    def post(self, url: str, payload: dict, headers: Optional[dict] = None) -> None: ...
+    def patch(self, url: str, payload: dict, headers: Optional[dict] = None) -> None: ...
 
 
 class RequestsTransport:
@@ -35,14 +36,14 @@ class RequestsTransport:
     def __init__(self, timeout: float = 5.0) -> None:
         self.timeout = timeout
 
-    def post(self, url: str, payload: dict) -> None:
+    def post(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
         import requests
-        resposta = requests.post(url, json=payload, timeout=self.timeout)
+        resposta = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
         resposta.raise_for_status()
 
-    def patch(self, url: str, payload: dict) -> None:
+    def patch(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
         import requests
-        resposta = requests.patch(url, json=payload, timeout=self.timeout)
+        resposta = requests.patch(url, json=payload, headers=headers, timeout=self.timeout)
         resposta.raise_for_status()
 
 
@@ -103,6 +104,35 @@ class _Item:
     snapshot_frame: object = None
 
 
+class MissingApiKeyError(Exception):
+    """A variável de ambiente referenciada por ``api_key_env`` não existe (ou
+    está vazia) no ambiente informado."""
+
+    def __init__(self, env_var: str) -> None:
+        self.env_var = env_var
+        super().__init__(
+            "Variavel de ambiente ausente para a chave de API do pipeline: "
+            f"{env_var}. Defina-a no .env do host (ou exporte antes de subir "
+            "o pipeline)."
+        )
+
+
+def resolve_api_key(env_var: Optional[str], env: Mapping[str, str]) -> Optional[str]:
+    """Resolve o valor de ``env_var`` no ambiente informado.
+
+    Mesmo contrato de ``expand_placeholders`` (`src/capture/config_client.py`):
+    o segredo nunca vem do YAML, só do ambiente do host, e a ausência (ou
+    valor vazio) falha alto nomeando a variável — em vez de mandar a chave
+    como string vazia, ou pior, deixar de mandar o header sem avisar.
+    """
+    if not env_var:
+        return None
+    valor = env.get(env_var)
+    if not valor:
+        raise MissingApiKeyError(env_var)
+    return valor
+
+
 class HttpIncidentSink:
     """Fila limitada + thread de envio, com retry e spill em disco."""
 
@@ -112,7 +142,10 @@ class HttpIncidentSink:
                  max_attempts: int = 5,
                  backoff_base: float = 0.5,
                  transport: Optional[Transport] = None,
-                 uploader: Optional[Uploader] = None) -> None:
+                 uploader: Optional[Uploader] = None,
+                 api_key_env: Optional[str] = None,
+                 api_key: Optional[str] = None,
+                 env: Optional[Mapping[str, str]] = None) -> None:
         self.api_url = api_url.rstrip("/")
         self.queue_size = queue_size
         self.spill_path = Path(spill_path)
@@ -120,6 +153,18 @@ class HttpIncidentSink:
         self.backoff_base = backoff_base
         self.transport = transport or RequestsTransport()
         self.uploader = uploader
+
+        # Resolvida uma vez, no boot: a chave nao muda no meio de uma
+        # execucao, e falhar aqui (em vez de dentro da thread de envio, no
+        # primeiro POST) e o que impede o pipeline de subir "quase"
+        # configurado e so descobrir o erro quando o primeiro incidente
+        # tenta sair. `api_key` explicito (ex.: vindo do provisionamento
+        # automatico via ApiKeyProvisioner) vence `api_key_env` -- os dois
+        # nunca sao resolvidos ao mesmo tempo.
+        chave = api_key if api_key is not None else resolve_api_key(
+            api_key_env, env if env is not None else os.environ)
+        self._headers: Optional[dict[str, str]] = (
+            {"X-Cypher-Key": chave} if chave is not None else None)
 
         self._items: list[_Item] = []
         self._lock = threading.Lock()
@@ -231,11 +276,13 @@ class HttpIncidentSink:
             item.attempts += 1
             try:
                 if item.kind == "open":
-                    self.transport.post(f"{self.api_url}/incidents", item.payload)
+                    self.transport.post(f"{self.api_url}/incidents", item.payload,
+                                        headers=self._headers)
                     self._anexar_snapshot(item)
                 else:
                     self.transport.patch(
-                        f"{self.api_url}/incidents/{item.incident_key}", item.payload)
+                        f"{self.api_url}/incidents/{item.incident_key}", item.payload,
+                        headers=self._headers)
                 return
             except Exception as falha:
                 if item.attempts >= self.max_attempts:
@@ -259,7 +306,8 @@ class HttpIncidentSink:
         try:
             url = self.uploader.upload(item.snapshot_frame, item.incident_key)
             self.transport.patch(
-                f"{self.api_url}/incidents/{item.incident_key}", {"snapshotUrl": url})
+                f"{self.api_url}/incidents/{item.incident_key}", {"snapshotUrl": url},
+                headers=self._headers)
         except Exception as falha:
             log.warning("Snapshot de %s nao anexado: %s", item.incident_key, falha)
 
