@@ -35,8 +35,9 @@ import cv2
 import numpy as np
 
 from src.capture import (
-    CameraConfigClient, CameraDisabledError, CameraNotRegisteredError,
-    CaptureConfig, MissingCredentialError, ResilientCapture,
+    ApiKeyProvisioner, ApiKeyProvisioningError, CameraConfigClient,
+    CameraDisabledError, CameraNotRegisteredError, CaptureConfig,
+    MissingCredentialError, MissingGestorCredentialError, ResilientCapture,
     aplicar_opcoes_ffmpeg,
 )
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
@@ -167,6 +168,20 @@ def main() -> None:
             from src.notify.sink import CloudinaryUploader
             uploader = CloudinaryUploader()
             print("[notify] snapshots serao enviados ao Cloudinary")
+
+        # Provisionamento automatico: so entra em jogo quando api_key_env NAO
+        # foi configurado manualmente E ha credencial de gestor no ambiente —
+        # sem os dois, o comportamento continua identico ao de antes (sem
+        # header nenhum, "desligado" e um estado valido).
+        chave_provisionada = None
+        if not notify_config.api_key_env and os.getenv("CYPHER_GESTOR_USER"):
+            provisioner = ApiKeyProvisioner(notify_config.api_url)
+            try:
+                chave_provisionada = provisioner.obter(notify_config.camera_id, os.environ)
+            except (ApiKeyProvisioningError, MissingGestorCredentialError) as erro:
+                raise SystemExit(f"[notify] {erro}")
+            print(f"[notify] X-Cypher-Key provisionada automaticamente para {notify_config.camera_id}")
+
         try:
             sink = HttpIncidentSink(
                 notify_config.api_url,
@@ -174,6 +189,7 @@ def main() -> None:
                 spill_path=notify_config.spill_path,
                 uploader=uploader,
                 api_key_env=notify_config.api_key_env,
+                api_key=chave_provisionada,
             )
         except MissingApiKeyError as erro:
             raise SystemExit(f"[notify] {erro}")

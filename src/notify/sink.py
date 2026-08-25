@@ -144,6 +144,7 @@ class HttpIncidentSink:
                  transport: Optional[Transport] = None,
                  uploader: Optional[Uploader] = None,
                  api_key_env: Optional[str] = None,
+                 api_key: Optional[str] = None,
                  env: Optional[Mapping[str, str]] = None) -> None:
         self.api_url = api_url.rstrip("/")
         self.queue_size = queue_size
@@ -157,8 +158,11 @@ class HttpIncidentSink:
         # execucao, e falhar aqui (em vez de dentro da thread de envio, no
         # primeiro POST) e o que impede o pipeline de subir "quase"
         # configurado e so descobrir o erro quando o primeiro incidente
-        # tenta sair.
-        chave = resolve_api_key(api_key_env, env if env is not None else os.environ)
+        # tenta sair. `api_key` explicito (ex.: vindo do provisionamento
+        # automatico via ApiKeyProvisioner) vence `api_key_env` -- os dois
+        # nunca sao resolvidos ao mesmo tempo.
+        chave = api_key if api_key is not None else resolve_api_key(
+            api_key_env, env if env is not None else os.environ)
         self._headers: Optional[dict[str, str]] = (
             {"X-Cypher-Key": chave} if chave is not None else None)
 

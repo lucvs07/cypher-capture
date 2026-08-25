@@ -7,6 +7,11 @@ from typing import MutableMapping
 
 import yaml
 
+from .apikey_provisioning import (
+    ApiKeyProvisioner,
+    ApiKeyProvisioningError,
+    MissingGestorCredentialError,
+)
 from .config_client import (
     CameraConfig,
     CameraConfigClient,
@@ -63,12 +68,15 @@ def aplicar_opcoes_ffmpeg(config: CaptureConfig,
 
 
 __all__ = [
+    "ApiKeyProvisioner",
+    "ApiKeyProvisioningError",
     "CameraConfig",
     "CameraConfigClient",
     "CameraDisabledError",
     "CameraNotRegisteredError",
     "CaptureConfig",
     "MissingCredentialError",
+    "MissingGestorCredentialError",
     "ResilientCapture",
     "aplicar_opcoes_ffmpeg",
     "expand_placeholders",

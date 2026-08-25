@@ -355,3 +355,20 @@ def test_api_key_env_none_nao_consulta_o_ambiente_e_nao_falha():
         sink.stop()
 
     assert transporte.posts[0][2] is None
+
+
+def test_api_key_explicita_vence_api_key_env():
+    # api_key vindo do provisionamento automatico (ApiKeyProvisioner) tem
+    # prioridade sobre api_key_env -- os dois nunca sao resolvidos juntos,
+    # e a variavel de ambiente nem chega a ser consultada.
+    transporte = TransporteFake()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte,
+                            api_key="cam-key-provisionada", api_key_env="CYPHER_KEY_CAM01", env={})
+    sink.start()
+    try:
+        sink.open(relatorio("k1"))
+        assert transporte.entregou.wait(timeout=2)
+    finally:
+        sink.stop()
+
+    assert transporte.posts[0][2] == {"X-Cypher-Key": "cam-key-provisionada"}
