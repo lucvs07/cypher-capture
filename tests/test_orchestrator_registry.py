@@ -9,6 +9,8 @@ sobe um processo real do SO.
 """
 from __future__ import annotations
 
+import json
+
 from src.orchestrator.registry import ProcessRegistry
 
 
@@ -42,9 +44,9 @@ class LauncherFake:
         return processo
 
 
-def test_iniciar_registra_o_processo_e_marca_vivo():
+def test_iniciar_registra_o_processo_e_marca_vivo(tmp_path):
     launcher = LauncherFake()
-    registry = ProcessRegistry(launcher)
+    registry = ProcessRegistry(launcher, state_path=str(tmp_path / "orchestrator-state.json"))
 
     registry.iniciar("CAM-01", "http://host:9001/stream", "http://api/api/v1")
 
@@ -53,15 +55,15 @@ def test_iniciar_registra_o_processo_e_marca_vivo():
     assert registry.stream_url_atual("CAM-01") == "http://host:9001/stream"
 
 
-def test_esta_vivo_retorna_falso_para_camera_desconhecida():
-    registry = ProcessRegistry(LauncherFake())
+def test_esta_vivo_retorna_falso_para_camera_desconhecida(tmp_path):
+    registry = ProcessRegistry(LauncherFake(), state_path=str(tmp_path / "orchestrator-state.json"))
 
     assert registry.esta_vivo("CAM-99") is False
 
 
-def test_esta_vivo_retorna_falso_quando_o_processo_terminou():
+def test_esta_vivo_retorna_falso_quando_o_processo_terminou(tmp_path):
     launcher = LauncherFake()
-    registry = ProcessRegistry(launcher)
+    registry = ProcessRegistry(launcher, state_path=str(tmp_path / "orchestrator-state.json"))
     registry.iniciar("CAM-01", "http://host:9001/stream", "http://api/api/v1")
 
     launcher.processos["CAM-01"].codigo_saida = 1
@@ -69,9 +71,9 @@ def test_esta_vivo_retorna_falso_quando_o_processo_terminou():
     assert registry.esta_vivo("CAM-01") is False
 
 
-def test_encerrar_chama_terminate_e_remove_do_registro():
+def test_encerrar_chama_terminate_e_remove_do_registro(tmp_path):
     launcher = LauncherFake()
-    registry = ProcessRegistry(launcher)
+    registry = ProcessRegistry(launcher, state_path=str(tmp_path / "orchestrator-state.json"))
     registry.iniciar("CAM-01", "http://host:9001/stream", "http://api/api/v1")
 
     registry.encerrar("CAM-01")
@@ -81,16 +83,77 @@ def test_encerrar_chama_terminate_e_remove_do_registro():
     assert "CAM-01" not in registry.camera_ids_rastreados()
 
 
-def test_encerrar_camera_desconhecida_nao_faz_nada():
-    registry = ProcessRegistry(LauncherFake())
+def test_encerrar_camera_desconhecida_nao_faz_nada(tmp_path):
+    registry = ProcessRegistry(LauncherFake(), state_path=str(tmp_path / "orchestrator-state.json"))
 
     registry.encerrar("CAM-99")  # nao deve levantar excecao
 
 
-def test_camera_ids_rastreados_reflete_o_que_esta_registrado():
+def test_camera_ids_rastreados_reflete_o_que_esta_registrado(tmp_path):
     launcher = LauncherFake()
-    registry = ProcessRegistry(launcher)
+    registry = ProcessRegistry(launcher, state_path=str(tmp_path / "orchestrator-state.json"))
     registry.iniciar("CAM-01", "url-1", "http://api/api/v1")
     registry.iniciar("CAM-02", "url-2", "http://api/api/v1")
 
     assert sorted(registry.camera_ids_rastreados()) == ["CAM-01", "CAM-02"]
+
+
+def test_iniciar_grava_o_pid_no_arquivo_de_estado(tmp_path):
+    state_path = tmp_path / "orchestrator-state.json"
+    launcher = LauncherFake()
+    registry = ProcessRegistry(launcher, state_path=str(state_path))
+
+    registry.iniciar("CAM-01", "url-1", "http://api/api/v1")
+
+    estado = json.loads(state_path.read_text())
+    assert estado == {"CAM-01": launcher.processos["CAM-01"].pid}
+
+
+def test_encerrar_remove_a_camera_do_arquivo_de_estado(tmp_path):
+    state_path = tmp_path / "orchestrator-state.json"
+    launcher = LauncherFake()
+    registry = ProcessRegistry(launcher, state_path=str(state_path))
+    registry.iniciar("CAM-01", "url-1", "http://api/api/v1")
+
+    registry.encerrar("CAM-01")
+
+    estado = json.loads(state_path.read_text())
+    assert estado == {}
+
+
+def test_limpar_orfaos_mata_pid_vivo_registrado_no_boot_anterior(tmp_path):
+    state_path = tmp_path / "orchestrator-state.json"
+    state_path.write_text(json.dumps({"CAM-01": 999}))
+    pids_mortos = []
+    registry = ProcessRegistry(
+        LauncherFake(), state_path=str(state_path),
+        esta_pid_vivo=lambda pid: pid == 999,
+        matar_pid=lambda pid: pids_mortos.append(pid),
+    )
+
+    registry.limpar_orfaos_do_boot_anterior()
+
+    assert pids_mortos == [999]
+    assert json.loads(state_path.read_text()) == {}
+
+
+def test_limpar_orfaos_ignora_pid_ja_morto(tmp_path):
+    state_path = tmp_path / "orchestrator-state.json"
+    state_path.write_text(json.dumps({"CAM-01": 999}))
+    pids_mortos = []
+    registry = ProcessRegistry(
+        LauncherFake(), state_path=str(state_path),
+        esta_pid_vivo=lambda pid: False,
+        matar_pid=lambda pid: pids_mortos.append(pid),
+    )
+
+    registry.limpar_orfaos_do_boot_anterior()
+
+    assert pids_mortos == []
+
+
+def test_limpar_orfaos_sem_arquivo_de_estado_nao_faz_nada(tmp_path):
+    state_path = tmp_path / "orchestrator-state.json"
+    registry = ProcessRegistry(LauncherFake(), state_path=str(state_path))
+
+    registry.limpar_orfaos_do_boot_anterior()  # nao deve levantar excecao
