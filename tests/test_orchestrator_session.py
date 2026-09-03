@@ -11,6 +11,8 @@ Transporte sempre injetado — nenhum teste toca rede.
 """
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from src.orchestrator.session import (
@@ -19,6 +21,7 @@ from src.orchestrator.session import (
     CredenciaisAusentesError,
     LoginFalhouError,
     OrchestratorSession,
+    RequestsSessionTransport,
     SessaoExpiradaError,
 )
 
@@ -111,3 +114,18 @@ def test_listar_cameras_propaga_catalogo_inacessivel_quando_o_relogin_tambem_fal
 
     with pytest.raises(CatalogoInacessivelError):
         sessao.listar_cameras()
+
+
+def test_requests_session_transport_login_falha_de_rede():
+    """Verifica que erros de rede (connection, timeout) durante login sao
+    convertidos em LoginFalhouError, nao propagam como raw exceptions."""
+    transporte = RequestsSessionTransport()
+
+    with patch("requests.Session.post") as mock_post:
+        mock_post.side_effect = ConnectionError("rede fora do ar")
+
+        with pytest.raises(LoginFalhouError) as exc_info:
+            transporte.login("http://api/api/v1", "usuario", "senha")
+
+        # Verifica que a mensagem menciona que foi erro de rede
+        assert "rede indisponível" in str(exc_info.value)

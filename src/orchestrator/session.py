@@ -62,9 +62,13 @@ class RequestsSessionTransport:
     def login(self, api_url: str, username: str, password: str) -> None:
         import requests
         self._session = requests.Session()
-        resposta = self._session.post(
-            f"{api_url}/auth/login", json={"username": username, "password": password},
-            timeout=self.timeout)
+        try:
+            resposta = self._session.post(
+                f"{api_url}/auth/login", json={"username": username, "password": password},
+                timeout=self.timeout)
+        except Exception as erro:  # conexão fora do ar, timeout, etc.
+            raise LoginFalhouError(
+                f"Login do orquestrador falhou (rede indisponível): {erro}") from erro
         if resposta.status_code != 200:
             raise LoginFalhouError(
                 f"Login do orquestrador falhou ({resposta.status_code}) — "
