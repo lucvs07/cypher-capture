@@ -1,0 +1,284 @@
+"""
+Testes de Reconciler (src/orchestrator/reconciler.py).
+
+O que está sendo protegido: os seis passos do ciclo de reconciliação
+(design doc, §2.3) — sobe câmera nova, derruba a que saiu do catálogo,
+reinicia a que mudou de streamUrl, respeita backoff antes de reiniciar a
+que morreu sozinha, respeita o limite de concorrência, e não toca em nada
+quando o catálogo está inacessível. Usa o ProcessRegistry REAL (já testado
+nas Tasks 2-3) com um LauncherFake, e uma sessão fake — assim o teste cobre
+a decisão do Reconciler, confiando na mecânica do registro já provada.
+"""
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timedelta, timezone
+
+from src.orchestrator.registry import ProcessRegistry
+from src.orchestrator.reconciler import Reconciler
+from src.orchestrator.session import CameraDesejada, CatalogoInacessivelError
+
+
+class ProcessoFake:
+    def __init__(self, pid: int):
+        self.pid = pid
+        self.codigo_saida = None
+        self.terminado = False
+
+    def poll(self):
+        return self.codigo_saida
+
+    def terminate(self):
+        self.terminado = True
+
+    def kill(self):
+        self.terminado = True
+
+
+class LauncherFake:
+    def __init__(self):
+        self.iniciados: list[tuple[str, str]] = []
+        self._proximo_pid = 1000
+        self.processos: dict[str, ProcessoFake] = {}
+
+    def iniciar(self, camera_id: str, api_url: str) -> ProcessoFake:
+        self.iniciados.append((camera_id, api_url))
+        processo = ProcessoFake(pid=self._proximo_pid)
+        self._proximo_pid += 1
+        self.processos[camera_id] = processo
+        return processo
+
+
+class SessaoFake:
+    def __init__(self, cameras=None, falhar=False):
+        self.cameras = cameras if cameras is not None else []
+        self.falhar = falhar
+
+    def listar_cameras(self):
+        if self.falhar:
+            raise CatalogoInacessivelError("catalogo fora do ar")
+        return self.cameras
+
+
+class RelogioFake:
+    def __init__(self):
+        self.valor = datetime(2026, 9, 3, 12, 0, 0, tzinfo=timezone.utc)
+
+    def __call__(self) -> datetime:
+        return self.valor
+
+    def avancar(self, segundos: float) -> None:
+        self.valor += timedelta(seconds=segundos)
+
+
+def _reconciler(sessao, launcher=None, max_concorrentes=4, backoff_base=0.5,
+                 backoff_max=10.0, relogio=None, state_path="outputs/x.json"):
+    launcher = launcher or LauncherFake()
+    registry = ProcessRegistry(launcher, state_path=state_path)
+    relogio = relogio or RelogioFake()
+    reconciler = Reconciler(sessao, registry, "http://api/api/v1", max_concorrentes,
+                             backoff_base, backoff_max, agora=relogio)
+    return reconciler, registry, launcher, relogio
+
+
+def test_camera_nova_e_iniciada(tmp_path):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+
+    reconciler.reconciliar_uma_vez()
+
+    assert launcher.iniciados == [("CAM-01", "http://api/api/v1")]
+    assert registry.esta_vivo("CAM-01") is True
+
+
+def test_camera_removida_do_catalogo_e_encerrada(tmp_path):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()
+
+    sessao.cameras = []  # desativada/deletada
+    reconciler.reconciliar_uma_vez()
+
+    assert launcher.processos["CAM-01"].terminado is True
+    assert registry.esta_vivo("CAM-01") is False
+
+
+def test_streamurl_mudou_reinicia_com_a_nova_url(tmp_path):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-antiga")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()
+    processo_antigo = launcher.processos["CAM-01"]  # captura antes do restart, o dict sera sobrescrito
+
+    sessao.cameras = [CameraDesejada("CAM-01", "url-nova")]
+    reconciler.reconciliar_uma_vez()
+
+    assert processo_antigo.terminado is True  # o processo antigo foi encerrado
+    assert launcher.iniciados == [("CAM-01", "http://api/api/v1"), ("CAM-01", "http://api/api/v1")]
+    assert registry.stream_url_atual("CAM-01") == "url-nova"
+
+
+def test_catalogo_inacessivel_nao_mexe_em_nada(tmp_path):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()
+
+    sessao.falhar = True
+    reconciler.reconciliar_uma_vez()
+
+    assert len(launcher.iniciados) == 1  # nao tentou iniciar de novo
+    assert registry.esta_vivo("CAM-01") is True  # continua rodando
+
+
+def test_processo_morto_espera_o_backoff_antes_de_reiniciar(tmp_path):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    relogio = RelogioFake()
+    reconciler, registry, launcher, relogio = _reconciler(
+        sessao, backoff_base=1.0, backoff_max=10.0, relogio=relogio, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()
+
+    launcher.processos["CAM-01"].codigo_saida = 1  # morreu sozinha
+
+    reconciler.reconciliar_uma_vez()
+    assert len(launcher.iniciados) == 1  # ainda nao reiniciou -- backoff_base ainda nao passou
+
+    relogio.avancar(1.0)
+    reconciler.reconciliar_uma_vez()
+    assert len(launcher.iniciados) == 2  # backoff passou -- reiniciou
+
+
+def test_limite_de_concorrencia_deixa_o_excedente_de_fora(tmp_path):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1"), CameraDesejada("CAM-02", "url-2")])
+    reconciler, registry, launcher, _ = _reconciler(
+        sessao, max_concorrentes=1, state_path=str(tmp_path / "s.json"))
+
+    reconciler.reconciliar_uma_vez()
+
+    assert len(launcher.iniciados) == 1
+    assert launcher.iniciados[0][0] == "CAM-01"  # ordenado por camera_id
+    assert registry.esta_vivo("CAM-02") is False
+
+
+def test_camera_ja_rodando_com_config_mudada_tem_prioridade_sobre_camera_nova(tmp_path):
+    """Regressao: sob concorrencia saturada, uma camera que ja rodava e so
+    precisa reiniciar (streamUrl mudou) nao pode perder a unica vaga para
+    uma camera nova que por acaso ordena alfabeticamente antes -- senao ela
+    fica permanentemente sem vaga enquanto a nova continuar viva e estavel."""
+    sessao = SessaoFake(cameras=[CameraDesejada("ZEBRA", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(
+        sessao, max_concorrentes=1, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()  # ZEBRA sobe, ocupa a unica vaga
+    assert registry.esta_vivo("ZEBRA") is True
+
+    # ZEBRA muda de streamUrl no mesmo ciclo em que ALPHA (nova) aparece --
+    # "ALPHA" ordena antes de "ZEBRA" alfabeticamente.
+    sessao.cameras = [CameraDesejada("ZEBRA", "url-2"), CameraDesejada("ALPHA", "url-nova")]
+    reconciler.reconciliar_uma_vez()
+
+    assert registry.esta_vivo("ZEBRA") is True  # reiniciada com prioridade, nao evictada
+    assert registry.stream_url_atual("ZEBRA") == "url-2"
+    assert registry.esta_vivo("ALPHA") is False  # nova ficou na fila, nao roubou a vaga
+
+
+def test_prioridade_de_reinicio_sobrevive_a_perda_da_vaga_por_morte_de_processo(tmp_path):
+    """Residual do mesmo bug corrigido em
+    test_camera_ja_rodando_com_config_mudada_tem_prioridade_sobre_camera_nova,
+    mas alcancado pelo caminho do passo 4 (processo morto) em vez do passo 3
+    (streamUrl mudou): `registry.encerrar()` no passo 4 tira a camera do
+    registro ANTES do calculo de vagas do passo 5. Se ela perder a vaga
+    daquele ciclo para uma concorrente saudavel, no ciclo seguinte
+    `rastreada` vira False e, sem um rastreador de prioridade que sobreviva
+    entre ciclos, ela cairia para a fila de "camera nova" -- perdendo pra
+    sempre a prioridade que o refactor original deu a ela."""
+    sessao = SessaoFake(cameras=[CameraDesejada("ZEBRA", "url-1")])
+    relogio = RelogioFake()
+    reconciler, registry, launcher, relogio = _reconciler(
+        sessao, max_concorrentes=1, backoff_base=1.0, backoff_max=10.0,
+        relogio=relogio, state_path=str(tmp_path / "s.json"))
+
+    reconciler.reconciliar_uma_vez()  # ZEBRA sobe, ocupa a unica vaga
+    assert registry.esta_vivo("ZEBRA") is True
+
+    launcher.processos["ZEBRA"].codigo_saida = 1  # ZEBRA morre sozinha
+
+    # ALPHA (nova) aparece no mesmo ciclo em que a morte de ZEBRA e
+    # detectada -- esse primeiro ciclo so registra a falha (backoff_base
+    # ainda nao passou), entao ALPHA fica livre pra roubar a vaga.
+    sessao.cameras = [CameraDesejada("ZEBRA", "url-1"), CameraDesejada("ALPHA", "url-alpha")]
+    reconciler.reconciliar_uma_vez()
+    assert registry.esta_vivo("ALPHA") is True
+    assert registry.esta_vivo("ZEBRA") is False
+
+    # backoff de ZEBRA passa -- ela agora esta elegivel a reiniciar, mas a
+    # unica vaga ja esta ocupada por ALPHA, que continua viva. ZEBRA perde a
+    # fatia deste ciclo e fica sem rastreamento (residual do bug).
+    relogio.avancar(1.0)
+    reconciler.reconciliar_uma_vez()
+    assert registry.esta_vivo("ZEBRA") is False
+    assert registry.esta_vivo("ALPHA") is True
+    assert "ZEBRA" not in registry.camera_ids_rastreados()  # confirma o cenario residual
+
+    # mais um ciclo passa (ALPHA continua saudavel, ocupando a vaga) -- BETA
+    # (outra camera nova) aparece no catalogo. Sem a correcao, ZEBRA teria
+    # sido reclassificada como "camera nova" e perderia (empate alfabetico)
+    # para BETA quando uma vaga se libera.
+    sessao.cameras = [
+        CameraDesejada("ZEBRA", "url-1"),
+        CameraDesejada("ALPHA", "url-alpha"),
+        CameraDesejada("BETA", "url-beta"),
+    ]
+    reconciler.reconciliar_uma_vez()
+    assert registry.esta_vivo("BETA") is False  # sem vaga livre, so registra a fila
+
+    # agora uma vaga se libera (ALPHA sai do catalogo) -- ZEBRA, que
+    # mantinha a prioridade de reinicio mesmo nao-rastreada, deve ganhar a
+    # vaga em vez de BETA (nova, alfabeticamente antes de ZEBRA).
+    sessao.cameras = [CameraDesejada("ZEBRA", "url-1"), CameraDesejada("BETA", "url-beta")]
+    reconciler.reconciliar_uma_vez()
+
+    assert registry.esta_vivo("ZEBRA") is True  # prioridade de reinicio preservada entre ciclos
+    assert registry.esta_vivo("BETA") is False  # nova nao furou a fila
+
+
+def test_vaga_liberada_e_ocupada_no_ciclo_seguinte(tmp_path):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1"), CameraDesejada("CAM-02", "url-2")])
+    reconciler, registry, launcher, _ = _reconciler(
+        sessao, max_concorrentes=1, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()  # so CAM-01 sobe
+
+    sessao.cameras = [CameraDesejada("CAM-02", "url-2")]  # CAM-01 saiu do catalogo
+    reconciler.reconciliar_uma_vez()
+
+    assert registry.esta_vivo("CAM-01") is False
+    assert registry.esta_vivo("CAM-02") is True
+
+
+def test_log_resumo_do_ciclo_quando_camera_iniciada(tmp_path, caplog):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+
+    caplog.set_level(logging.INFO)
+    reconciler.reconciliar_uma_vez()
+
+    assert any(
+        "Ciclo de reconciliacao" in r.getMessage()
+        and "reiniciadas=" in r.getMessage()
+        for r in caplog.records
+        if r.name == "src.orchestrator.reconciler" and r.levelno == logging.INFO
+    )
+
+
+def test_nao_loga_resumo_quando_catalogo_inacessivel(tmp_path, caplog):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()
+
+    sessao.falhar = True
+    caplog.set_level(logging.INFO)
+    caplog.clear()
+    reconciler.reconciliar_uma_vez()
+
+    assert not any(
+        "Ciclo de reconciliacao" in r.getMessage()
+        for r in caplog.records
+        if r.name == "src.orchestrator.reconciler" and r.levelno == logging.INFO
+    )
