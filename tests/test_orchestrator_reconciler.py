@@ -179,6 +179,66 @@ def test_camera_ja_rodando_com_config_mudada_tem_prioridade_sobre_camera_nova(tm
     assert registry.esta_vivo("ALPHA") is False  # nova ficou na fila, nao roubou a vaga
 
 
+def test_prioridade_de_reinicio_sobrevive_a_perda_da_vaga_por_morte_de_processo(tmp_path):
+    """Residual do mesmo bug corrigido em
+    test_camera_ja_rodando_com_config_mudada_tem_prioridade_sobre_camera_nova,
+    mas alcancado pelo caminho do passo 4 (processo morto) em vez do passo 3
+    (streamUrl mudou): `registry.encerrar()` no passo 4 tira a camera do
+    registro ANTES do calculo de vagas do passo 5. Se ela perder a vaga
+    daquele ciclo para uma concorrente saudavel, no ciclo seguinte
+    `rastreada` vira False e, sem um rastreador de prioridade que sobreviva
+    entre ciclos, ela cairia para a fila de "camera nova" -- perdendo pra
+    sempre a prioridade que o refactor original deu a ela."""
+    sessao = SessaoFake(cameras=[CameraDesejada("ZEBRA", "url-1")])
+    relogio = RelogioFake()
+    reconciler, registry, launcher, relogio = _reconciler(
+        sessao, max_concorrentes=1, backoff_base=1.0, backoff_max=10.0,
+        relogio=relogio, state_path=str(tmp_path / "s.json"))
+
+    reconciler.reconciliar_uma_vez()  # ZEBRA sobe, ocupa a unica vaga
+    assert registry.esta_vivo("ZEBRA") is True
+
+    launcher.processos["ZEBRA"].codigo_saida = 1  # ZEBRA morre sozinha
+
+    # ALPHA (nova) aparece no mesmo ciclo em que a morte de ZEBRA e
+    # detectada -- esse primeiro ciclo so registra a falha (backoff_base
+    # ainda nao passou), entao ALPHA fica livre pra roubar a vaga.
+    sessao.cameras = [CameraDesejada("ZEBRA", "url-1"), CameraDesejada("ALPHA", "url-alpha")]
+    reconciler.reconciliar_uma_vez()
+    assert registry.esta_vivo("ALPHA") is True
+    assert registry.esta_vivo("ZEBRA") is False
+
+    # backoff de ZEBRA passa -- ela agora esta elegivel a reiniciar, mas a
+    # unica vaga ja esta ocupada por ALPHA, que continua viva. ZEBRA perde a
+    # fatia deste ciclo e fica sem rastreamento (residual do bug).
+    relogio.avancar(1.0)
+    reconciler.reconciliar_uma_vez()
+    assert registry.esta_vivo("ZEBRA") is False
+    assert registry.esta_vivo("ALPHA") is True
+    assert "ZEBRA" not in registry.camera_ids_rastreados()  # confirma o cenario residual
+
+    # mais um ciclo passa (ALPHA continua saudavel, ocupando a vaga) -- BETA
+    # (outra camera nova) aparece no catalogo. Sem a correcao, ZEBRA teria
+    # sido reclassificada como "camera nova" e perderia (empate alfabetico)
+    # para BETA quando uma vaga se libera.
+    sessao.cameras = [
+        CameraDesejada("ZEBRA", "url-1"),
+        CameraDesejada("ALPHA", "url-alpha"),
+        CameraDesejada("BETA", "url-beta"),
+    ]
+    reconciler.reconciliar_uma_vez()
+    assert registry.esta_vivo("BETA") is False  # sem vaga livre, so registra a fila
+
+    # agora uma vaga se libera (ALPHA sai do catalogo) -- ZEBRA, que
+    # mantinha a prioridade de reinicio mesmo nao-rastreada, deve ganhar a
+    # vaga em vez de BETA (nova, alfabeticamente antes de ZEBRA).
+    sessao.cameras = [CameraDesejada("ZEBRA", "url-1"), CameraDesejada("BETA", "url-beta")]
+    reconciler.reconciliar_uma_vez()
+
+    assert registry.esta_vivo("ZEBRA") is True  # prioridade de reinicio preservada entre ciclos
+    assert registry.esta_vivo("BETA") is False  # nova nao furou a fila
+
+
 def test_vaga_liberada_e_ocupada_no_ciclo_seguinte(tmp_path):
     sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1"), CameraDesejada("CAM-02", "url-2")])
     reconciler, registry, launcher, _ = _reconciler(

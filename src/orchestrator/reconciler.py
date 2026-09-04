@@ -42,6 +42,7 @@ class Reconciler:
         self.backoff_max = backoff_max
         self.agora = agora
         self._falhas: dict[str, _EstadoDeFalha] = {}
+        self._prioridade_restart: set[str] = set()
 
     def reconciliar_uma_vez(self) -> None:
         try:
@@ -56,6 +57,7 @@ class Reconciler:
             if camera_id not in desejado_por_id:
                 self.registry.encerrar(camera_id)
                 self._falhas.pop(camera_id, None)
+                self._prioridade_restart.discard(camera_id)
 
         precisa_reiniciar: list[str] = []  # ja rodava antes deste ciclo (config mudou / morreu sozinha)
         precisa_iniciar_novo: list[str] = []  # nunca rastreada -- camera nova no catalogo
@@ -68,11 +70,13 @@ class Reconciler:
                 # 3. mudou de config -- encerra e marca para reiniciar com a nova
                 self.registry.encerrar(camera_id)
                 self._falhas.pop(camera_id, None)
+                self._prioridade_restart.add(camera_id)
                 precisa_reiniciar.append(camera_id)
                 continue
 
             if viva:
                 self._falhas.pop(camera_id, None)  # rodando com sucesso -- reseta o backoff
+                self._prioridade_restart.discard(camera_id)
                 continue
 
             if rastreada:
@@ -80,10 +84,17 @@ class Reconciler:
                 if not self._pode_reiniciar_agora(camera_id):
                     continue
                 self.registry.encerrar(camera_id)  # limpa a entrada morta antes de reiniciar
+                self._prioridade_restart.add(camera_id)
                 precisa_reiniciar.append(camera_id)
                 continue
 
-            precisa_iniciar_novo.append(camera_id)
+            if camera_id in self._prioridade_restart:
+                # nao rastreada agora, mas ja tinha prioridade de reinicio de
+                # um ciclo anterior (perdeu a vaga antes de conseguir subir de
+                # volta) -- mantem a prioridade em vez de virar "camera nova".
+                precisa_reiniciar.append(camera_id)
+            else:
+                precisa_iniciar_novo.append(camera_id)
 
         # 5. sobe o que falta, respeitando o limite de concorrencia -- cameras
         # que ja rodavam (config mudou ou morreram sozinhas) tem prioridade
@@ -97,6 +108,7 @@ class Reconciler:
         for camera_id in iniciadas:
             camera = desejado_por_id[camera_id]
             self.registry.iniciar(camera_id, camera.stream_url, self.api_url)
+            self._prioridade_restart.discard(camera_id)
 
         # 6. loga um resumo do ciclo
         rodando = sum(1 for cid in self.registry.camera_ids_rastreados() if self.registry.esta_vivo(cid))
