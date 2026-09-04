@@ -57,7 +57,8 @@ class Reconciler:
                 self.registry.encerrar(camera_id)
                 self._falhas.pop(camera_id, None)
 
-        precisa_iniciar: list[str] = []
+        precisa_reiniciar: list[str] = []  # ja rodava antes deste ciclo (config mudou / morreu sozinha)
+        precisa_iniciar_novo: list[str] = []  # nunca rastreada -- camera nova no catalogo
 
         for camera_id, camera in desejado_por_id.items():
             viva = self.registry.esta_vivo(camera_id)
@@ -67,7 +68,7 @@ class Reconciler:
                 # 3. mudou de config -- encerra e marca para reiniciar com a nova
                 self.registry.encerrar(camera_id)
                 self._falhas.pop(camera_id, None)
-                precisa_iniciar.append(camera_id)
+                precisa_reiniciar.append(camera_id)
                 continue
 
             if viva:
@@ -79,20 +80,27 @@ class Reconciler:
                 if not self._pode_reiniciar_agora(camera_id):
                     continue
                 self.registry.encerrar(camera_id)  # limpa a entrada morta antes de reiniciar
+                precisa_reiniciar.append(camera_id)
+                continue
 
-            precisa_iniciar.append(camera_id)
+            precisa_iniciar_novo.append(camera_id)
 
-        # 5. sobe o que falta, respeitando o limite de concorrencia
+        # 5. sobe o que falta, respeitando o limite de concorrencia -- cameras
+        # que ja rodavam (config mudou ou morreram sozinhas) tem prioridade
+        # sobre cameras novas, senao uma camera nova alfabeticamente menor
+        # pode roubar a vaga de uma que so precisa ser reiniciada, deixando-a
+        # sem vaga indefinidamente enquanto a nova continuar viva.
         vivos = sum(1 for cid in self.registry.camera_ids_rastreados() if self.registry.esta_vivo(cid))
         vagas = max(self.max_concorrentes - vivos, 0)
-        iniciadas = sorted(precisa_iniciar)[:vagas]
+        candidatos = sorted(precisa_reiniciar) + sorted(precisa_iniciar_novo)
+        iniciadas = candidatos[:vagas]
         for camera_id in iniciadas:
             camera = desejado_por_id[camera_id]
             self.registry.iniciar(camera_id, camera.stream_url, self.api_url)
 
         # 6. loga um resumo do ciclo
         rodando = sum(1 for cid in self.registry.camera_ids_rastreados() if self.registry.esta_vivo(cid))
-        na_fila = len(precisa_iniciar) - len(iniciadas)
+        na_fila = len(candidatos) - len(iniciadas)
         log.info("Ciclo de reconciliacao: rodando=%d na_fila=%d reiniciadas=%d",
                  rodando, na_fila, len(iniciadas))
 

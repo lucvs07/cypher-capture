@@ -19,6 +19,7 @@ def test_parse_args_usa_os_defaults_documentados():
     assert args.max_concorrentes == 2
     assert args.config == "config/pose_config.yaml"
     assert args.state_path == "outputs/orchestrator-state.json"
+    assert args.log_dir == "outputs/orchestrator-logs"
 
 
 def test_parse_args_aceita_overrides():
@@ -28,9 +29,11 @@ def test_parse_args_aceita_overrides():
         "--max-concorrentes", "5",
         "--config", "config/outro.yaml",
         "--state-path", "outputs/outro-estado.json",
+        "--log-dir", "outputs/outro-log-dir",
     ])
 
     assert args.intervalo == 10
     assert args.max_concorrentes == 5
     assert args.config == "config/outro.yaml"
     assert args.state_path == "outputs/outro-estado.json"
+    assert args.log_dir == "outputs/outro-log-dir"

@@ -158,6 +158,27 @@ def test_limite_de_concorrencia_deixa_o_excedente_de_fora(tmp_path):
     assert registry.esta_vivo("CAM-02") is False
 
 
+def test_camera_ja_rodando_com_config_mudada_tem_prioridade_sobre_camera_nova(tmp_path):
+    """Regressao: sob concorrencia saturada, uma camera que ja rodava e so
+    precisa reiniciar (streamUrl mudou) nao pode perder a unica vaga para
+    uma camera nova que por acaso ordena alfabeticamente antes -- senao ela
+    fica permanentemente sem vaga enquanto a nova continuar viva e estavel."""
+    sessao = SessaoFake(cameras=[CameraDesejada("ZEBRA", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(
+        sessao, max_concorrentes=1, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()  # ZEBRA sobe, ocupa a unica vaga
+    assert registry.esta_vivo("ZEBRA") is True
+
+    # ZEBRA muda de streamUrl no mesmo ciclo em que ALPHA (nova) aparece --
+    # "ALPHA" ordena antes de "ZEBRA" alfabeticamente.
+    sessao.cameras = [CameraDesejada("ZEBRA", "url-2"), CameraDesejada("ALPHA", "url-nova")]
+    reconciler.reconciliar_uma_vez()
+
+    assert registry.esta_vivo("ZEBRA") is True  # reiniciada com prioridade, nao evictada
+    assert registry.stream_url_atual("ZEBRA") == "url-2"
+    assert registry.esta_vivo("ALPHA") is False  # nova ficou na fila, nao roubou a vaga
+
+
 def test_vaga_liberada_e_ocupada_no_ciclo_seguinte(tmp_path):
     sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1"), CameraDesejada("CAM-02", "url-2")])
     reconciler, registry, launcher, _ = _reconciler(

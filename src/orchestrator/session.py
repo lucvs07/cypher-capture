@@ -113,4 +113,8 @@ class OrchestratorSession:
             except (SessaoExpiradaError, LoginFalhouError, CatalogoInacessivelError) as segunda_falha:
                 raise CatalogoInacessivelError(
                     f"sessao expirou e o re-login falhou: {segunda_falha}") from segunda_falha
-        return [CameraDesejada(camera_id=d["id"], stream_url=d["streamUrl"]) for d in dados]
+        try:
+            return [CameraDesejada(camera_id=d["id"], stream_url=d["streamUrl"]) for d in dados]
+        except (KeyError, TypeError) as erro:
+            raise CatalogoInacessivelError(
+                f"GET /cameras devolveu dados mal formados: {erro}") from erro

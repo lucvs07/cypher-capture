@@ -157,3 +157,17 @@ def test_limpar_orfaos_sem_arquivo_de_estado_nao_faz_nada(tmp_path):
     registry = ProcessRegistry(LauncherFake(), state_path=str(state_path))
 
     registry.limpar_orfaos_do_boot_anterior()  # nao deve levantar excecao
+
+
+def test_limpar_orfaos_com_arquivo_de_estado_corrompido_trata_como_vazio(tmp_path):
+    """Um crash exatamente durante a escrita nao-atomica de _gravar_estado
+    pode deixar o arquivo truncado/invalido -- isso precisa degradar
+    graciosamente (como se nao houvesse estado anterior), nao derrubar o
+    boot do orquestrador."""
+    state_path = tmp_path / "orchestrator-state.json"
+    state_path.write_text("{not valid json")
+    registry = ProcessRegistry(LauncherFake(), state_path=str(state_path))
+
+    registry.limpar_orfaos_do_boot_anterior()  # nao deve levantar excecao
+
+    assert json.loads(state_path.read_text()) == {}

@@ -9,6 +9,7 @@ diretamente (login real, loop infinito, subprocess real de verdade) — só
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import subprocess
 import sys
@@ -50,17 +51,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="Arquivo de config de onde ler capture.backoff_base_seconds/backoff_max_seconds")
     p.add_argument("--state-path", default="outputs/orchestrator-state.json",
                    help="Onde persistir o mapa camera_id->pid entre reinicios do orquestrador")
+    p.add_argument("--log-dir", default="outputs/orchestrator-logs",
+                   help="Diretorio onde gravar o log por camera de cada pipeline (default: outputs/orchestrator-logs)")
     return p.parse_args(argv)
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
     args = parse_args()
     capture_config = CaptureConfig.from_yaml(args.config)
 
     sessao = OrchestratorSession(args.api_url, RequestsSessionTransport())
     sessao.login(os.environ)
 
-    registry = ProcessRegistry(SubprocessLauncher(), state_path=args.state_path)
+    registry = ProcessRegistry(SubprocessLauncher(log_dir=args.log_dir), state_path=args.state_path)
     registry.limpar_orfaos_do_boot_anterior()
 
     reconciler = Reconciler(

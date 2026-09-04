@@ -9,11 +9,14 @@ ver `limpar_orfaos_do_boot_anterior`.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import signal
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional, Protocol
+
+log = logging.getLogger(__name__)
 
 
 class ProcessoLike(Protocol):
@@ -88,7 +91,13 @@ class ProcessRegistry:
     def limpar_orfaos_do_boot_anterior(self) -> None:
         if not self.state_path.exists():
             return
-        estado_anterior: dict[str, int] = json.loads(self.state_path.read_text())
+        try:
+            estado_anterior: dict[str, int] = json.loads(self.state_path.read_text())
+        except json.JSONDecodeError:
+            log.warning(
+                "Arquivo de estado %s esta corrompido (JSON invalido) -- "
+                "tratando como se nao houvesse estado anterior.", self.state_path)
+            estado_anterior = {}
         for pid in estado_anterior.values():
             if self.esta_pid_vivo(pid):
                 self.matar_pid(pid)

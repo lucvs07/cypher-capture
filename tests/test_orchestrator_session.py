@@ -116,6 +116,20 @@ def test_listar_cameras_propaga_catalogo_inacessivel_quando_o_relogin_tambem_fal
         sessao.listar_cameras()
 
 
+def test_listar_cameras_com_dado_mal_formado_vira_catalogo_inacessivel():
+    """Um registro de camera sem 'id' ou 'streamUrl' (backend com bug, ou
+    versao de API divergente) nao pode escapar como KeyError cru -- o
+    Reconciler so sabe tratar CatalogoInacessivelError."""
+    transporte = TransporteFake(cameras=[
+        {"id": "CAM-01", "nome": "Entrada", "estacaoId": "EST-01"},  # falta streamUrl
+    ])
+    sessao = OrchestratorSession("http://api/api/v1", transporte)
+    sessao.login({"CYPHER_GESTOR_USER": "orquestrador@acme", "CYPHER_GESTOR_PASSWORD": "senha123"})
+
+    with pytest.raises(CatalogoInacessivelError):
+        sessao.listar_cameras()
+
+
 def test_requests_session_transport_login_falha_de_rede():
     """Verifica que erros de rede (connection, timeout) durante login sao
     convertidos em LoginFalhouError, nao propagam como raw exceptions."""
