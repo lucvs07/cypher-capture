@@ -9,12 +9,15 @@ falhas esperadas (catálogo inacessível vira "não faz nada neste ciclo").
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from src.orchestrator.registry import ProcessRegistry
 from src.orchestrator.session import CatalogoInacessivelError
+
+log = logging.getLogger(__name__)
 
 
 def _agora_utc() -> datetime:
@@ -82,9 +85,16 @@ class Reconciler:
         # 5. sobe o que falta, respeitando o limite de concorrencia
         vivos = sum(1 for cid in self.registry.camera_ids_rastreados() if self.registry.esta_vivo(cid))
         vagas = max(self.max_concorrentes - vivos, 0)
-        for camera_id in sorted(precisa_iniciar)[:vagas]:
+        iniciadas = sorted(precisa_iniciar)[:vagas]
+        for camera_id in iniciadas:
             camera = desejado_por_id[camera_id]
             self.registry.iniciar(camera_id, camera.stream_url, self.api_url)
+
+        # 6. loga um resumo do ciclo
+        rodando = sum(1 for cid in self.registry.camera_ids_rastreados() if self.registry.esta_vivo(cid))
+        na_fila = len(precisa_iniciar) - len(iniciadas)
+        log.info("Ciclo de reconciliacao: rodando=%d na_fila=%d reiniciadas=%d",
+                 rodando, na_fila, len(iniciadas))
 
     def _pode_reiniciar_agora(self, camera_id: str) -> bool:
         """Mesma formula de backoff de ResilientCapture._loop_leitura: a

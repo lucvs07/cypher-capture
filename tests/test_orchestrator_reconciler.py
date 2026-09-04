@@ -11,6 +11,7 @@ a decisão do Reconciler, confiando na mecânica do registro já provada.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from src.orchestrator.registry import ProcessRegistry
@@ -168,3 +169,35 @@ def test_vaga_liberada_e_ocupada_no_ciclo_seguinte(tmp_path):
 
     assert registry.esta_vivo("CAM-01") is False
     assert registry.esta_vivo("CAM-02") is True
+
+
+def test_log_resumo_do_ciclo_quando_camera_iniciada(tmp_path, caplog):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+
+    caplog.set_level(logging.INFO)
+    reconciler.reconciliar_uma_vez()
+
+    assert any(
+        "Ciclo de reconciliacao" in r.getMessage()
+        and "reiniciadas=" in r.getMessage()
+        for r in caplog.records
+        if r.name == "src.orchestrator.reconciler" and r.levelno == logging.INFO
+    )
+
+
+def test_nao_loga_resumo_quando_catalogo_inacessivel(tmp_path, caplog):
+    sessao = SessaoFake(cameras=[CameraDesejada("CAM-01", "url-1")])
+    reconciler, registry, launcher, _ = _reconciler(sessao, state_path=str(tmp_path / "s.json"))
+    reconciler.reconciliar_uma_vez()
+
+    sessao.falhar = True
+    caplog.set_level(logging.INFO)
+    caplog.clear()
+    reconciler.reconciliar_uma_vez()
+
+    assert not any(
+        "Ciclo de reconciliacao" in r.getMessage()
+        for r in caplog.records
+        if r.name == "src.orchestrator.reconciler" and r.levelno == logging.INFO
+    )
