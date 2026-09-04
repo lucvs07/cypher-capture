@@ -35,12 +35,22 @@ class Zone:
 
 
 class ZoneManager:
-    """Manages critical zone definitions with JSON persistence."""
+    """Manages critical zone definitions with JSON persistence.
 
-    def __init__(self, config_path: str = "config/zones/zones.json") -> None:
+    Aceita zonas ja resolvidas em memoria (``zones=``), usadas quando o
+    cliente remoto de configuracao (``ZoneConfigClient``, design doc de
+    zonas de risco §3.1) ja converteu normalizado->pixel com a resolucao
+    real do frame — nesse caso nada e lido nem gravado em disco.
+    """
+
+    def __init__(self, config_path: str = "config/zones/zones.json",
+                 zones: list[Zone] | None = None) -> None:
         self._path = Path(config_path)
         self._zones: dict[str, Zone] = {}
-        if self._path.exists():
+        if zones is not None:
+            for z in zones:
+                self._zones[z.zone_id] = z
+        elif self._path.exists():
             self._load()
 
     def add(self, zone: Zone) -> None:
