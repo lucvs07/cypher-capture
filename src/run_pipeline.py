@@ -47,7 +47,7 @@ from src.notify import (
     MissingApiKeyError, MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
-from src.zones import ZoneConfigClient, ZoneDetector, ZoneManager, Zone
+from src.zones import ZoneConfigClient, ZoneDetector, ZoneHotReloader, ZoneManager, Zone
 
 
 def resolver_config_remota(cliente: CameraConfigClient, camera_id: str,
@@ -114,6 +114,11 @@ def parse_args() -> argparse.Namespace:
                    help="porta do stream MJPEG (default: do config)")
     p.add_argument("--no-stream", action="store_true",
                    help="nao sobe o servidor de video ao vivo")
+    p.add_argument("--zone-refresh-seconds", type=float, default=30.0,
+                   help="hot-reload: intervalo (em segundos) para rebuscar zonas "
+                        "remotas em segundo plano e aplicar sem reiniciar o "
+                        "pipeline; 0 desativa (default: 30). Ignorado quando "
+                        "--zones (arquivo local explicito) e usado.")
     return p.parse_args()
 
 
@@ -257,6 +262,7 @@ def main() -> None:
     height = cap.height
     src_fps = cap.fps
 
+    zone_reloader = None
     if args.camera_id and args.api_url:
         zone_cliente = ZoneConfigClient(args.api_url, cache_path=capture_config.zones_cache_path)
         zonas_remotas = resolver_zonas(zone_cliente, args.camera_id, width, height,
@@ -269,6 +275,30 @@ def main() -> None:
                 pipeline._zones = ZoneManager(config.zones_config, zones=zonas_remotas)
                 pipeline._zone_detector = ZoneDetector(pipeline._zones, config.approach_buffer_px)
                 print(f"[zones]  {len(zonas_remotas)} zone(s) resolved remotely for {width}x{height}")
+
+        # Hot-reload (design doc de zonas de risco §3.4/§7): sem isso, uma
+        # zona criada/editada na UI so valia no proximo boot. Roda em thread
+        # separada pra nao travar o loop de frames com a chamada de rede do
+        # ZoneConfigClient (timeout de 5s do transporte real). --zones
+        # (arquivo local explicito) sempre vence e desativa o hot-reload,
+        # mesmo espirito de "--source vence o cadastro" ja usado acima.
+        if not args.zones and args.zone_refresh_seconds > 0:
+            def _aplicar_zonas_recarregadas(novas_zonas: list[Zone]) -> None:
+                pipeline._zones = ZoneManager(config.zones_config, zones=novas_zonas)
+                pipeline._zone_detector = ZoneDetector(pipeline._zones, config.approach_buffer_px)
+                print(f"\n[zones]  {len(novas_zonas)} zone(s) atualizadas em segundo "
+                      f"plano (hot-reload, sem reiniciar o pipeline)")
+
+            zone_reloader = ZoneHotReloader(
+                zone_cliente, args.camera_id, width, height,
+                on_zonas=_aplicar_zonas_recarregadas,
+                interval_seconds=args.zone_refresh_seconds,
+                api_key=chave_provisionada,
+            )
+            if zonas_remotas is not None:
+                zone_reloader.marcar_zonas_atuais(zonas_remotas)
+            zone_reloader.start()
+            print(f"[zones]  hot-reload ativo (revalida a cada {args.zone_refresh_seconds:.0f}s)")
 
     writer = None
     if args.output:
@@ -348,6 +378,8 @@ def main() -> None:
         # O flush é o que impede que cada execução deixe incidentes órfãos:
         # sem ele, cenario2.mp4 encerra com 2 FALL_RISK abertos para sempre.
         tracker.flush(datetime.now(timezone.utc).astimezone())
+        if zone_reloader is not None:
+            zone_reloader.stop()
         sink.stop()
         if stream is not None:
             stream.stop()
