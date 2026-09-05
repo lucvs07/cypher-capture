@@ -64,7 +64,7 @@ class CameraNotRegisteredError(Exception):
 
 
 class ConfigTransport(Protocol):
-    def get_json(self, url: str) -> tuple[int, dict]: ...
+    def get_json(self, url: str, api_key: Optional[str] = None) -> tuple[int, dict]: ...
 
 
 class RequestsConfigTransport:
@@ -74,9 +74,10 @@ class RequestsConfigTransport:
     def __init__(self, timeout: float = 5.0) -> None:
         self.timeout = timeout
 
-    def get_json(self, url: str) -> tuple[int, dict]:
+    def get_json(self, url: str, api_key: Optional[str] = None) -> tuple[int, dict]:
         import requests
-        resposta = requests.get(url, timeout=self.timeout)
+        headers = {"X-Cypher-Key": api_key} if api_key else None
+        resposta = requests.get(url, timeout=self.timeout, headers=headers)
         try:
             corpo = resposta.json()
         except ValueError:
@@ -122,8 +123,8 @@ class CameraConfigClient:
         self.transport = transport or RequestsConfigTransport()
         self._now = now or (lambda: datetime.now(timezone.utc))
 
-    def fetch(self, camera_id: str, env) -> Optional[CameraConfig]:
-        bruto = self._da_api(camera_id)
+    def fetch(self, camera_id: str, env, api_key: Optional[str] = None) -> Optional[CameraConfig]:
+        bruto = self._da_api(camera_id, api_key)
         if bruto is not None:
             self._gravar_cache(camera_id, bruto)
             return self._montar(bruto, env, origem="api", idade=0.0,
@@ -140,10 +141,10 @@ class CameraConfigClient:
     # Internos
     # ------------------------------------------------------------------
 
-    def _da_api(self, camera_id: str) -> Optional[dict]:
+    def _da_api(self, camera_id: str, api_key: Optional[str] = None) -> Optional[dict]:
         url = f"{self.api_url}/cameras/{camera_id}/config"
         try:
-            status, corpo = self.transport.get_json(url)
+            status, corpo = self.transport.get_json(url, api_key)
         except Exception as falha:
             log.warning("Config de %s indisponivel na API: %s", camera_id, falha)
             return None

@@ -44,9 +44,11 @@ class TransporteFake:
         self.corpo = corpo if corpo is not None else CORPO
         self.erro = erro
         self.urls: list[str] = []
+        self.api_keys: list[object] = []
 
-    def get_json(self, url):
+    def get_json(self, url, api_key=None):
         self.urls.append(url)
+        self.api_keys.append(api_key)
         if self.erro is not None:
             raise self.erro
         return self.status, self.corpo
@@ -83,6 +85,22 @@ def test_expande_a_credencial_do_ambiente(tmp_path):
 def test_credencial_ausente_aborta_em_vez_de_montar_url_quebrada(tmp_path):
     with pytest.raises(MissingCredentialError):
         cliente(tmp_path, TransporteFake()).fetch("CAM-01", {})
+
+
+def test_envia_x_cypher_key_quando_api_key_fornecida(tmp_path):
+    transporte = TransporteFake()
+
+    cliente(tmp_path, transporte).fetch("CAM-01", AMBIENTE, api_key="cam-key-abc")
+
+    assert transporte.api_keys == ["cam-key-abc"]
+
+
+def test_nao_envia_x_cypher_key_quando_api_key_omitida(tmp_path):
+    transporte = TransporteFake()
+
+    cliente(tmp_path, transporte).fetch("CAM-01", AMBIENTE)
+
+    assert transporte.api_keys == [None]
 
 
 def test_grava_cache_com_a_fonte_ainda_em_placeholder(tmp_path):

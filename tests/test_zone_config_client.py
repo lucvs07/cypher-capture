@@ -34,9 +34,11 @@ class TransporteFake:
         self.corpo = corpo if corpo is not None else CORPO_API
         self.erro = erro
         self.urls: list[str] = []
+        self.api_keys: list[object] = []
 
-    def get_json(self, url):
+    def get_json(self, url, api_key=None):
         self.urls.append(url)
+        self.api_keys.append(api_key)
         if self.erro is not None:
             raise self.erro
         return self.status, self.corpo
@@ -58,6 +60,22 @@ def test_busca_no_endpoint_de_config_de_zonas_da_camera(tmp_path):
     cliente(tmp_path, transporte).fetch("CAM-01", 1280, 720)
 
     assert transporte.urls == ["http://api/api/v1/cameras/CAM-01/zones/config"]
+
+
+def test_envia_x_cypher_key_quando_api_key_fornecida(tmp_path):
+    transporte = TransporteFake()
+
+    cliente(tmp_path, transporte).fetch("CAM-01", 1280, 720, api_key="cam-key-abc")
+
+    assert transporte.api_keys == ["cam-key-abc"]
+
+
+def test_nao_envia_x_cypher_key_quando_api_key_omitida(tmp_path):
+    transporte = TransporteFake()
+
+    cliente(tmp_path, transporte).fetch("CAM-01", 1280, 720)
+
+    assert transporte.api_keys == [None]
 
 
 def test_converte_normalizado_para_pixel_usando_a_resolucao_informada(tmp_path):

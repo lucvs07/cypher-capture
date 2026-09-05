@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 
 class ZoneConfigTransport(Protocol):
-    def get_json(self, url: str) -> tuple[int, object]: ...
+    def get_json(self, url: str, api_key: Optional[str] = None) -> tuple[int, object]: ...
 
 
 class RequestsZoneConfigTransport:
@@ -33,9 +33,10 @@ class RequestsZoneConfigTransport:
     def __init__(self, timeout: float = 5.0) -> None:
         self.timeout = timeout
 
-    def get_json(self, url: str) -> tuple[int, object]:
+    def get_json(self, url: str, api_key: Optional[str] = None) -> tuple[int, object]:
         import requests
-        resposta = requests.get(url, timeout=self.timeout)
+        headers = {"X-Cypher-Key": api_key} if api_key else None
+        resposta = requests.get(url, timeout=self.timeout, headers=headers)
         try:
             corpo = resposta.json()
         except ValueError:
@@ -64,8 +65,9 @@ class ZoneConfigClient:
         self.transport = transport or RequestsZoneConfigTransport()
         self._now = now or (lambda: datetime.now(timezone.utc))
 
-    def fetch(self, camera_id: str, width: int, height: int) -> Optional[list[Zone]]:
-        bruto = self._da_api(camera_id)
+    def fetch(self, camera_id: str, width: int, height: int,
+              api_key: Optional[str] = None) -> Optional[list[Zone]]:
+        bruto = self._da_api(camera_id, api_key)
         if bruto is not None:
             try:
                 zonas = self._converter(bruto, width, height)
@@ -95,10 +97,10 @@ class ZoneConfigClient:
     # Internos
     # ------------------------------------------------------------------
 
-    def _da_api(self, camera_id: str) -> Optional[list[dict]]:
+    def _da_api(self, camera_id: str, api_key: Optional[str] = None) -> Optional[list[dict]]:
         url = f"{self.api_url}/cameras/{camera_id}/zones/config"
         try:
-            status, corpo = self.transport.get_json(url)
+            status, corpo = self.transport.get_json(url, api_key)
         except Exception as falha:
             log.warning("Zonas de %s indisponiveis na API: %s", camera_id, falha)
             return None

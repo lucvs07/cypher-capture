@@ -51,13 +51,14 @@ from src.zones import ZoneConfigClient, ZoneDetector, ZoneManager, Zone
 
 
 def resolver_config_remota(cliente: CameraConfigClient, camera_id: str,
-                            env, explicit_source: bool):
+                            env, explicit_source: bool,
+                            api_key: Optional[str] = None):
     """Busca a config remota; se falhar e houver --source, cede a ele em vez
     de derrubar o processo — --source existe para depurar exatamente essa
     situação (cadastro indisponivel, camera desativada, credencial ausente).
     """
     try:
-        return cliente.fetch(camera_id, env)
+        return cliente.fetch(camera_id, env, api_key=api_key)
     except (CameraDisabledError, CameraNotRegisteredError,
             MissingCredentialError) as erro:
         if explicit_source:
@@ -68,7 +69,8 @@ def resolver_config_remota(cliente: CameraConfigClient, camera_id: str,
 
 
 def resolver_zonas(cliente: ZoneConfigClient, camera_id: str,
-                   width: int, height: int) -> Optional[list[Zone]]:
+                   width: int, height: int,
+                   api_key: Optional[str] = None) -> Optional[list[Zone]]:
     """Busca zonas remotas convertidas para a resolucao real do frame.
 
     None quando API e cache nao tem nada — o chamador mantem as zonas do
@@ -76,7 +78,7 @@ def resolver_zonas(cliente: ZoneConfigClient, camera_id: str,
     zonas de risco, §3.1, degrau 3). Diferente de resolver_config_remota,
     nao ha excecao de dominio a distinguir: zero zonas e sempre aceito.
     """
-    return cliente.fetch(camera_id, width, height)
+    return cliente.fetch(camera_id, width, height, api_key=api_key)
 
 
 def parse_args() -> argparse.Namespace:
@@ -130,6 +132,35 @@ def main() -> None:
     capture_config = CaptureConfig.from_yaml(args.config)
     aplicar_opcoes_ffmpeg(capture_config, os.environ)
 
+    notify_config = NotifyConfig.from_yaml(args.config)
+    if args.camera_id:
+        notify_config.camera_id = args.camera_id
+    if args.api_url:
+        notify_config.api_url = args.api_url
+    if args.stream_port is not None:
+        notify_config.stream_port = args.stream_port
+    if args.no_stream:
+        notify_config.stream_enabled = False
+
+    # Provisionamento antecipado, antes de qualquer busca de config/zonas
+    # remotas: essas rotas exigem X-Cypher-Key ou sessao GESTOR (design doc
+    # de zonas de risco §2, mesmo padrao ja usado por GET /cameras/{id}/config
+    # desde E2) — sem a chave em maos ANTES da primeira chamada, a API sempre
+    # responde 401 e a escada degrada pro proximo degrau mesmo quando uma
+    # chave valida ja existe em cache (achado do teste manual ponta a ponta,
+    # roteiro de entregas §5). So entra em jogo quando api_key_env NAO foi
+    # configurado manualmente E ha credencial de gestor no ambiente — sem os
+    # dois, o comportamento continua identico ao de antes (sem header nenhum).
+    chave_provisionada = None
+    if (args.camera_id and args.api_url and not notify_config.api_key_env
+            and os.getenv("CYPHER_GESTOR_USER")):
+        provisioner = ApiKeyProvisioner(notify_config.api_url)
+        try:
+            chave_provisionada = provisioner.obter(notify_config.camera_id, os.environ)
+        except (ApiKeyProvisioningError, MissingGestorCredentialError) as erro:
+            raise SystemExit(f"[notify] {erro}")
+        print(f"[notify] X-Cypher-Key provisionada automaticamente para {notify_config.camera_id}")
+
     fonte = args.source
     origem_da_fonte = "--source"
     config_remota = None
@@ -138,7 +169,8 @@ def main() -> None:
         cliente = CameraConfigClient(args.api_url,
                                      cache_path=capture_config.cache_path)
         config_remota = resolver_config_remota(
-            cliente, args.camera_id, os.environ, explicit_source=bool(args.source))
+            cliente, args.camera_id, os.environ, explicit_source=bool(args.source),
+            api_key=chave_provisionada)
 
     if config_remota is not None:
         if args.source:
@@ -162,16 +194,6 @@ def main() -> None:
     pipeline = UnifiedPipeline(config)
     print(f"[zones]  {len(pipeline._zones.get_all())} zone(s) loaded")
 
-    notify_config = NotifyConfig.from_yaml(args.config)
-    if args.camera_id:
-        notify_config.camera_id = args.camera_id
-    if args.api_url:
-        notify_config.api_url = args.api_url
-    if args.stream_port is not None:
-        notify_config.stream_port = args.stream_port
-    if args.no_stream:
-        notify_config.stream_enabled = False
-
     if (args.stream_port is None and config_remota is not None
             and not args.source and config_remota.stream_port):
         notify_config.stream_port = config_remota.stream_port
@@ -180,22 +202,11 @@ def main() -> None:
         uploader = None
         if os.getenv("CLOUDINARY_CLOUD_NAME"):
             from src.notify.sink import CloudinaryUploader
-            uploader = CloudinaryUploader()
-            print("[notify] snapshots serao enviados ao Cloudinary")
+            uploader = CloudinaryUploader(folder=os.getenv("CLOUDINARY_FOLDER", "cypher-incidents"))
+            print(f"[notify] snapshots serao enviados ao Cloudinary (pasta: {uploader.folder})")
 
-        # Provisionamento automatico: so entra em jogo quando api_key_env NAO
-        # foi configurado manualmente E ha credencial de gestor no ambiente —
-        # sem os dois, o comportamento continua identico ao de antes (sem
-        # header nenhum, "desligado" e um estado valido).
-        chave_provisionada = None
-        if not notify_config.api_key_env and os.getenv("CYPHER_GESTOR_USER"):
-            provisioner = ApiKeyProvisioner(notify_config.api_url)
-            try:
-                chave_provisionada = provisioner.obter(notify_config.camera_id, os.environ)
-            except (ApiKeyProvisioningError, MissingGestorCredentialError) as erro:
-                raise SystemExit(f"[notify] {erro}")
-            print(f"[notify] X-Cypher-Key provisionada automaticamente para {notify_config.camera_id}")
-
+        # chave_provisionada ja foi resolvida mais acima (antes da busca de
+        # config/zonas remotas) — reaproveitada aqui, sem provisionar de novo.
         try:
             sink = HttpIncidentSink(
                 notify_config.api_url,
@@ -248,7 +259,8 @@ def main() -> None:
 
     if args.camera_id and args.api_url:
         zone_cliente = ZoneConfigClient(args.api_url, cache_path=capture_config.zones_cache_path)
-        zonas_remotas = resolver_zonas(zone_cliente, args.camera_id, width, height)
+        zonas_remotas = resolver_zonas(zone_cliente, args.camera_id, width, height,
+                                       api_key=chave_provisionada)
         if zonas_remotas is not None:
             if args.zones:
                 print(f"[zones]  --zones vence o cadastro de {args.camera_id} "

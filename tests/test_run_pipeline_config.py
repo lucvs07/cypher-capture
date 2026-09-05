@@ -34,8 +34,10 @@ class ClienteFake:
     def __init__(self, erro=None, config=None):
         self.erro = erro
         self.config = config
+        self.api_keys: list[object] = []
 
-    def fetch(self, camera_id, env):
+    def fetch(self, camera_id, env, api_key=None):
+        self.api_keys.append(api_key)
         if self.erro is not None:
             raise self.erro
         return self.config
@@ -83,10 +85,10 @@ def test_config_normal_e_devolvida_sem_alteracao(explicit_source):
 class ClienteZonasFake:
     def __init__(self, zonas=None):
         self.zonas = zonas
-        self.chamadas: list[tuple[str, int, int]] = []
+        self.chamadas: list[tuple[str, int, int, object]] = []
 
-    def fetch(self, camera_id, width, height):
-        self.chamadas.append((camera_id, width, height))
+    def fetch(self, camera_id, width, height, api_key=None):
+        self.chamadas.append((camera_id, width, height, api_key))
         return self.zonas
 
 
@@ -97,7 +99,15 @@ def test_resolver_zonas_devolve_o_que_o_cliente_busca():
     resultado = resolver_zonas(cliente, "CAM-01", 1280, 720)
 
     assert resultado == [zona]
-    assert cliente.chamadas == [("CAM-01", 1280, 720)]
+    assert cliente.chamadas == [("CAM-01", 1280, 720, None)]
+
+
+def test_resolver_zonas_repassa_a_api_key_para_o_cliente():
+    cliente = ClienteZonasFake(zonas=[])
+
+    resolver_zonas(cliente, "CAM-01", 1280, 720, api_key="cam-key-abc")
+
+    assert cliente.chamadas == [("CAM-01", 1280, 720, "cam-key-abc")]
 
 
 def test_resolver_zonas_devolve_none_quando_o_cliente_nao_tem_nada():
