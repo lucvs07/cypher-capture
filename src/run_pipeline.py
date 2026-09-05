@@ -27,6 +27,7 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 # Ensure project root is importable regardless of CWD
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -46,6 +47,7 @@ from src.notify import (
     MissingApiKeyError, MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
+from src.zones import ZoneConfigClient, ZoneDetector, ZoneManager, Zone
 
 
 def resolver_config_remota(cliente: CameraConfigClient, camera_id: str,
@@ -63,6 +65,18 @@ def resolver_config_remota(cliente: CameraConfigClient, camera_id: str,
                   f"seguindo com --source")
             return None
         raise SystemExit(f"[config] {erro}")
+
+
+def resolver_zonas(cliente: ZoneConfigClient, camera_id: str,
+                   width: int, height: int) -> Optional[list[Zone]]:
+    """Busca zonas remotas convertidas para a resolucao real do frame.
+
+    None quando API e cache nao tem nada — o chamador mantem as zonas do
+    arquivo local (config.zones_config) sem interrupcao (design doc de
+    zonas de risco, §3.1, degrau 3). Diferente de resolver_config_remota,
+    nao ha excecao de dominio a distinguir: zero zonas e sempre aceito.
+    """
+    return cliente.fetch(camera_id, width, height)
 
 
 def parse_args() -> argparse.Namespace:
@@ -231,6 +245,14 @@ def main() -> None:
     width = cap.width
     height = cap.height
     src_fps = cap.fps
+
+    if args.camera_id and args.api_url:
+        zone_cliente = ZoneConfigClient(args.api_url, cache_path=capture_config.zones_cache_path)
+        zonas_remotas = resolver_zonas(zone_cliente, args.camera_id, width, height)
+        if zonas_remotas is not None:
+            pipeline._zones = ZoneManager(config.zones_config, zones=zonas_remotas)
+            pipeline._zone_detector = ZoneDetector(pipeline._zones, config.approach_buffer_px)
+            print(f"[zones]  {len(zonas_remotas)} zone(s) resolved remotely for {width}x{height}")
 
     writer = None
     if args.output:

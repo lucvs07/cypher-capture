@@ -23,7 +23,8 @@ from src.capture.config_client import (
     CameraNotRegisteredError,
     MissingCredentialError,
 )
-from src.run_pipeline import resolver_config_remota
+from src.run_pipeline import resolver_config_remota, resolver_zonas
+from src.zones.manager import Zone
 
 
 class ClienteFake:
@@ -77,3 +78,39 @@ def test_config_normal_e_devolvida_sem_alteracao(explicit_source):
                                        explicit_source=explicit_source)
 
     assert resultado is config
+
+
+class ClienteZonasFake:
+    def __init__(self, zonas=None):
+        self.zonas = zonas
+        self.chamadas: list[tuple[str, int, int]] = []
+
+    def fetch(self, camera_id, width, height):
+        self.chamadas.append((camera_id, width, height))
+        return self.zonas
+
+
+def test_resolver_zonas_devolve_o_que_o_cliente_busca():
+    zona = Zone.new("A", "restricted", [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
+    cliente = ClienteZonasFake(zonas=[zona])
+
+    resultado = resolver_zonas(cliente, "CAM-01", 1280, 720)
+
+    assert resultado == [zona]
+    assert cliente.chamadas == [("CAM-01", 1280, 720)]
+
+
+def test_resolver_zonas_devolve_none_quando_o_cliente_nao_tem_nada():
+    cliente = ClienteZonasFake(zonas=None)
+
+    resultado = resolver_zonas(cliente, "CAM-01", 1280, 720)
+
+    assert resultado is None
+
+
+def test_resolver_zonas_aceita_lista_vazia_sem_virar_none():
+    cliente = ClienteZonasFake(zonas=[])
+
+    resultado = resolver_zonas(cliente, "CAM-01", 1280, 720)
+
+    assert resultado == []
