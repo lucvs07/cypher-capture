@@ -33,6 +33,7 @@ class CaptureConfig:
     backoff_base_seconds: float = 0.5
     backoff_max_seconds: float = 10.0
     cache_path: str = "outputs/camera-config-cache.json"
+    zones_cache_path: str = "outputs/zones-config-cache.json"
 
     @classmethod
     def from_yaml(cls, path: str) -> "CaptureConfig":
