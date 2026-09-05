@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional, Protocol
@@ -68,13 +67,29 @@ class ZoneConfigClient:
     def fetch(self, camera_id: str, width: int, height: int) -> Optional[list[Zone]]:
         bruto = self._da_api(camera_id)
         if bruto is not None:
-            self._gravar_cache(camera_id, bruto)
-            return self._converter(bruto, width, height)
+            try:
+                zonas = self._converter(bruto, width, height)
+            except (KeyError, TypeError, AttributeError) as falha:
+                # Resposta malformada (payload no formato errado, campo
+                # obrigatorio ausente, etc.): trata como se a API estivesse
+                # fora do ar em vez de propagar e derrubar o boot — e,
+                # sobretudo, NUNCA grava esse corpo no cache, senao a
+                # proxima subida com a API fora le o mesmo lixo de volta.
+                log.warning("Zonas de %s: resposta da API malformada (%s); "
+                            "caindo para o cache", camera_id, falha)
+            else:
+                self._gravar_cache(camera_id, bruto)
+                return zonas
 
         bruto_cache = self._do_cache(camera_id)
         if bruto_cache is None:
             return None
-        return self._converter(bruto_cache, width, height)
+        try:
+            return self._converter(bruto_cache, width, height)
+        except (KeyError, TypeError, AttributeError) as falha:
+            log.warning("Zonas de %s: cache ilegivel (%s); nenhuma zona remota",
+                        camera_id, falha)
+            return None
 
     # ------------------------------------------------------------------
     # Internos
@@ -89,6 +104,15 @@ class ZoneConfigClient:
             return None
 
         if status == 200:
+            if not isinstance(corpo, list):
+                # Um proxy ou erro serializado ("{'erro': ...}") pode
+                # devolver 200 com um corpo que nao e a lista de zonas
+                # esperada. Trata como API indisponivel: a escada cai para
+                # cache/None em vez de propagar um TypeError la na frente.
+                log.warning("Zonas de %s: API respondeu 200 com corpo "
+                            "inesperado (%s), tratando como indisponivel",
+                            camera_id, type(corpo).__name__)
+                return None
             return corpo
         log.warning("Zonas de %s: API respondeu %s", camera_id, status)
         return None
@@ -96,7 +120,12 @@ class ZoneConfigClient:
     def _converter(self, bruto: list[dict], width: int, height: int) -> list[Zone]:
         zonas: list[Zone] = []
         for item in bruto:
-            polygon_px = [(p["x"] * width, p["y"] * height) for p in item["polygon"]]
+            polygon = item["polygon"]
+            if len(polygon) < 3:
+                log.warning("Zona %s ignorada: poligono com menos de 3 "
+                            "vertices (%d)", item.get("id", "?"), len(polygon))
+                continue
+            polygon_px = [(p["x"] * width, p["y"] * height) for p in polygon]
             zonas.append(Zone(
                 zone_id=str(item["id"]),
                 name=item["nome"],

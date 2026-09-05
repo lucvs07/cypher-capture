@@ -121,3 +121,141 @@ def test_status_inesperado_da_api_sem_cache_devolve_none(tmp_path):
     zonas = cliente(tmp_path, TransporteFake(status=500, corpo={})).fetch("CAM-01", 1280, 720)
 
     assert zonas is None
+
+
+def test_corpo_da_api_nao_e_lista_cai_para_cache_sem_poluir(tmp_path):
+    cache_path = tmp_path / "zones-cache.json"
+    cache_path.write_text(json.dumps({
+        "CAM-01": {"fetched_at": AGORA.isoformat(), "zones": CORPO_API},
+    }))
+
+    zonas = ZoneConfigClient(
+        "http://api/api/v1", cache_path=str(cache_path),
+        transport=TransporteFake(corpo={"erro": "proxy indisponivel"}),
+        now=lambda: AGORA,
+    ).fetch("CAM-01", 1280, 720)
+
+    assert zonas is not None and len(zonas) == 1
+    assert zonas[0].name == "Area da prensa"
+    gravado = json.loads(cache_path.read_text())
+    assert gravado["CAM-01"]["zones"] == CORPO_API  # cache NAO sobrescrito
+
+
+def test_corpo_da_api_nao_e_lista_sem_cache_devolve_none(tmp_path):
+    zonas = cliente(tmp_path, TransporteFake(corpo={"erro": "proxy indisponivel"})).fetch("CAM-01", 1280, 720)
+
+    assert zonas is None
+
+
+def test_zona_com_campo_obrigatorio_ausente_cai_para_cache_sem_poluir(tmp_path):
+    cache_path = tmp_path / "zones-cache.json"
+    cache_path.write_text(json.dumps({
+        "CAM-01": {"fetched_at": AGORA.isoformat(), "zones": CORPO_API},
+    }))
+    corpo_malformado = [
+        {
+            "id": 2,
+            # "nome" ausente
+            "zoneType": "RESTRICTED",
+            "polygon": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.1}, {"x": 0.2, "y": 0.2}],
+            "severity": 3,
+        },
+    ]
+
+    zonas = ZoneConfigClient(
+        "http://api/api/v1", cache_path=str(cache_path),
+        transport=TransporteFake(corpo=corpo_malformado),
+        now=lambda: AGORA,
+    ).fetch("CAM-01", 1280, 720)
+
+    assert zonas is not None and len(zonas) == 1
+    assert zonas[0].name == "Area da prensa"
+    gravado = json.loads(cache_path.read_text())
+    assert gravado["CAM-01"]["zones"] == CORPO_API  # cache NAO sobrescrito com o lixo
+
+
+def test_zona_com_poligono_de_menos_de_3_vertices_e_ignorada(tmp_path):
+    corpo = [
+        {
+            "id": 1,
+            "nome": "Poligono quebrado",
+            "zoneType": "RESTRICTED",
+            "polygon": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.1}],  # so 2 vertices
+            "severity": 3,
+        },
+        {
+            "id": 2,
+            "nome": "Zona valida",
+            "zoneType": "ATTENTION",
+            "polygon": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.1}, {"x": 0.2, "y": 0.2}],
+            "severity": 2,
+        },
+    ]
+
+    zonas = cliente(tmp_path, TransporteFake(corpo=corpo)).fetch("CAM-01", 1280, 720)
+
+    assert len(zonas) == 1
+    assert zonas[0].name == "Zona valida"
+
+
+def test_zona_com_campo_obrigatorio_ausente_sem_cache_devolve_none(tmp_path):
+    corpo_malformado = [
+        {
+            "id": 2,
+            # "nome" ausente
+            "zoneType": "RESTRICTED",
+            "polygon": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.1}, {"x": 0.2, "y": 0.2}],
+            "severity": 3,
+        },
+    ]
+
+    zonas = cliente(tmp_path, TransporteFake(corpo=corpo_malformado)).fetch("CAM-01", 1280, 720)
+
+    assert zonas is None
+
+
+def test_cache_ja_poluido_com_api_fora_nao_crasha_o_boot(tmp_path):
+    # Reproduz o cenario descrito no achado #1: uma execucao anterior a esta
+    # correcao ja gravou lixo no cache (zona sem "nome"). Com a API fora do
+    # ar, a escada precisa degradar para None em vez de propagar o KeyError
+    # e derrubar o boot de novo — sem exigir apagar o arquivo manualmente.
+    cache_path = tmp_path / "zones-cache.json"
+    cache_path.write_text(json.dumps({
+        "CAM-01": {"fetched_at": AGORA.isoformat(), "zones": [
+            {"id": 2, "zoneType": "RESTRICTED",
+             "polygon": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.1}, {"x": 0.2, "y": 0.2}],
+             "severity": 3},
+        ]},
+    }))
+
+    zonas = ZoneConfigClient(
+        "http://api/api/v1", cache_path=str(cache_path),
+        transport=TransporteFake(erro=ConnectionError("fora do ar")),
+        now=lambda: AGORA,
+    ).fetch("CAM-01", 1280, 720)
+
+    assert zonas is None
+
+
+def test_zona_com_poligono_vazio_e_ignorada_mas_outras_seguem(tmp_path):
+    corpo = [
+        {
+            "id": 1,
+            "nome": "Sem poligono",
+            "zoneType": "RESTRICTED",
+            "polygon": [],
+            "severity": 3,
+        },
+        {
+            "id": 2,
+            "nome": "Zona valida",
+            "zoneType": "ATTENTION",
+            "polygon": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.1}, {"x": 0.2, "y": 0.2}],
+            "severity": 2,
+        },
+    ]
+
+    zonas = cliente(tmp_path, TransporteFake(corpo=corpo)).fetch("CAM-01", 1280, 720)
+
+    assert len(zonas) == 1
+    assert zonas[0].name == "Zona valida"

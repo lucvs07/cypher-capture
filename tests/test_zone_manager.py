@@ -30,6 +30,20 @@ def test_sem_zones_cai_no_carregamento_por_arquivo_como_antes(tmp_path):
     assert manager_lido.get_all()[0].name == "Zona X"
 
 
+def test_zones_vazia_explicita_nao_cai_no_arquivo_com_zonas(tmp_path):
+    # `zones=[]` (lista vazia, nao None) precisa ser respeitado como "zero
+    # zonas" mesmo com um arquivo populado no mesmo caminho — "if zones is
+    # not None" e um keystroke de distancia de "if zones", que trataria
+    # [] como falsy e cairia no arquivo por engano.
+    caminho = tmp_path / "zones.json"
+    manager_para_gravar = ZoneManager(str(caminho))
+    manager_para_gravar.add(Zone.new("Zona X", "attention", [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)]))
+
+    manager = ZoneManager(str(caminho), zones=[])
+
+    assert manager.get_all() == []
+
+
 def test_zones_pre_carregadas_indexam_por_zone_id_como_o_carregamento_por_arquivo(tmp_path):
     z1 = Zone.new("A", "restricted", [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)])
     z2 = Zone.new("B", "attention", [(2.0, 2.0), (3.0, 2.0), (3.0, 3.0)])

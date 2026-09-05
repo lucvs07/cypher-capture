@@ -250,9 +250,13 @@ def main() -> None:
         zone_cliente = ZoneConfigClient(args.api_url, cache_path=capture_config.zones_cache_path)
         zonas_remotas = resolver_zonas(zone_cliente, args.camera_id, width, height)
         if zonas_remotas is not None:
-            pipeline._zones = ZoneManager(config.zones_config, zones=zonas_remotas)
-            pipeline._zone_detector = ZoneDetector(pipeline._zones, config.approach_buffer_px)
-            print(f"[zones]  {len(zonas_remotas)} zone(s) resolved remotely for {width}x{height}")
+            if args.zones:
+                print(f"[zones]  --zones vence o cadastro de {args.camera_id} "
+                      f"(depuracao contra arquivo)")
+            else:
+                pipeline._zones = ZoneManager(config.zones_config, zones=zonas_remotas)
+                pipeline._zone_detector = ZoneDetector(pipeline._zones, config.approach_buffer_px)
+                print(f"[zones]  {len(zonas_remotas)} zone(s) resolved remotely for {width}x{height}")
 
     writer = None
     if args.output:
