@@ -42,6 +42,7 @@ class PipelineConfig:
     enter_frames: int = 5
     enter_frames_risk: int = 2
     exit_frames: int = 15
+    fall_confirm_seconds: float = 1.0
     thresholds: ClassifierThresholds = field(default_factory=ClassifierThresholds)
 
     @classmethod
@@ -82,6 +83,7 @@ class UnifiedPipeline:
             enter_frames=config.enter_frames,
             exit_frames=config.exit_frames,
             enter_frames_risk=config.enter_frames_risk,
+            fall_confirm_frames=round(config.fall_confirm_seconds * config.target_fps),
         )
         self._temporal = TemporalAnalyzer(fps=config.target_fps)
         self._zones = ZoneManager(config.zones_config)

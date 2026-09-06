@@ -19,6 +19,10 @@ classifier:
   exit_frames: 45                    # consecutive normal frames to leave an alarm state
                                      # (raised 15->45: holds the immediate_risk alarm through the
                                      #  "fallen and still" period; lifted cenario2 recall 0.59->0.99)
+  fall_confirm_seconds: 1.0          # janela de confirmacao antes de reportar
+                                      # IMMEDIATE_RISK via fall_velocity puro
+                                      # (design doc 2026-09-05, elimina falso
+                                      # alarme em agachamentos rapidos)
 
 thresholds:
   trunk_flexion_deg: 60.0            # NR-17: sustained forward lean beyond this is a risk factor
