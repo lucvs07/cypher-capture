@@ -254,7 +254,19 @@ class PostureClassifier:
         # em andamento pra este track. So sai daqui confirmando IMMEDIATE_RISK
         # (via person_fallen) ou descartando o episodio (janela esgotada) —
         # nunca confirma via fall_velocity puro.
-        if person_id in self._fall_pending_confirm:
+        # Narrowed per spec 2026-09-05 §2/§6: only fall_velocity/person_fallen
+        # are gated here. Any other alarm (balance_loss_risk, critical_zone,
+        # ...) aborts the pending fall episode and falls through to standard
+        # hysteresis so the competing alarm surfaces exactly as on baseline.
+        # Re-entry safety net: a transient NORMAL frame mid-window drops the
+        # pending episode, but a genuine landing still re-triggers via the
+        # normal person_fallen hysteresis (~enter_frames_risk delay). And a
+        # persistent fall_risk re-opens a fresh window every cycle after a
+        # discard, so fall_velocity alone can never surface publicly (intended).
+        if person_id in self._fall_pending_confirm and reason in (
+            "fall_velocity",
+            "person_fallen",
+        ):
             if reason == "person_fallen":
                 frames_waited = self._fall_pending_confirm.pop(person_id)
                 return PostureState(
@@ -272,6 +284,10 @@ class PostureClassifier:
             else:
                 self._fall_pending_confirm[person_id] = frames_waited
             return None
+
+        # A competing non-fall alarm arrived while a fall window was open:
+        # abandon the pending episode and let it surface normally below.
+        self._fall_pending_confirm.pop(person_id, None)
 
         pending = self._pending.get(person_id)
         enter_threshold = (

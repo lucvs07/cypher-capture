@@ -365,3 +365,19 @@ class TestFallConfirmation:
         assert s.category == PostureCategory.IMMEDIATE_RISK
         assert s.reason == "person_fallen"
         assert s.frames_in_state == 1
+
+    def test_janela_de_confirmacao_nao_bloqueia_balance_loss_risk(self):
+        # Spec 2026-09-05 §2/§6: balance_loss_risk mantem o schedule normal
+        # mesmo com uma janela de confirmacao de queda aberta.
+        clf = PostureClassifier(enter_frames_risk=2, fall_confirm_frames=15)
+        pid = 1
+        # abre a janela de confirmacao via fall_velocity (2 frames).
+        clf.update(pid, neutral_angles(pid), reba(1), TALL_BBOX, fall_risk=0.9)
+        clf.update(pid, neutral_angles(pid), reba(1), TALL_BBOX, fall_risk=0.9)
+        # agora aparece instabilidade (sem fall_risk) -> balance_loss_risk deve
+        # confirmar em enter_frames_risk (2) frames, exatamente como no baseline.
+        unstable = JointAngles(person_id=pid, trunk_rotation_proxy=0.5)
+        assert clf.update(pid, unstable, reba(1), TALL_BBOX).category == PostureCategory.NORMAL
+        s = clf.update(pid, unstable, reba(1), TALL_BBOX)
+        assert s.category == PostureCategory.IMMEDIATE_RISK
+        assert s.reason == "balance_loss_risk"
