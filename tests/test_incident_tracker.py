@@ -269,11 +269,21 @@ def test_cenario2_nao_deixa_incidente_orfao():
     assert len(coletor.fechados) >= len(coletor.abertos)
 
 
-def test_cenario2_fecha_o_ultimo_episodio_como_pipeline_parado():
+def test_cenario2_fecha_o_ultimo_episodio_como_regresso_ao_normal():
+    """Depois do gating temporal de queda, a corrida não termina mais com um
+    alarme em aberto.
+
+    A fixture antiga tinha um episódio espúrio de ``fall_velocity`` no fim do
+    clipe (f1270–1328) que nunca voltava ao ``normal`` e só era fechado à força
+    no ``flush`` — daí o ``PIPELINE_STOPPED``. O gating removeu esse falso
+    "fall" trailing; agora o último episódio real (a 2ª queda, f1036–1263)
+    volta ao ``normal`` bem antes do fim do vídeo e fecha normalmente por
+    ``STATE_EXIT`` (a pessoa se recuperou e a janela de saída expirou).
+    """
     _, coletor = _reproduzir_cenario2()
 
     ultimo = coletor.fechados[-1]
-    assert ultimo.closed_reason == ClosedReason.PIPELINE_STOPPED
+    assert ultimo.closed_reason == ClosedReason.STATE_EXIT
 
 
 def test_sem_janela_de_merge_o_mesmo_clipe_explode_em_alertas():
@@ -284,11 +294,23 @@ def test_sem_janela_de_merge_o_mesmo_clipe_explode_em_alertas():
     assert len(sem_janela.abertos) > len(com_janela.abertos)
 
 
-def test_track_espurio_de_doze_frames_nao_vira_incidente():
+def test_nenhum_track_curto_vira_incidente_no_replay():
+    """O guard de ``min_track_frames`` barra tracks espúrios do ByteTrack.
+
+    Na fixture nova, ``vida_dos_tracks`` traz o track 2 (1 frame), a
+    pseudo-track ``-1`` (2 frames — id de fallback negativo que o estimador dá
+    a detecções ainda não confirmadas) e o track 4 (12 frames), todos abaixo
+    dos 15 frames de ``min_track_frames``. Nenhum deles pode abrir incidente;
+    só o track 1 (1307 frames) tem vida suficiente.
+    """
     _, coletor = _reproduzir_cenario2()
 
-    # O track 4 vive 12 frames e abriria um FALL_RISK a 3 frames do fim.
-    assert all(r.track_id != 4 for r in coletor.abertos)
+    dados = json.loads(FIXTURE.read_text())
+    vida = {int(k): v for k, v in dados["vida_dos_tracks"].items()}
+    curtos = {tid for tid, v in vida.items() if v < 15}
+
+    assert curtos, "esperava ao menos um track curto na fixture"
+    assert all(r.track_id not in curtos for r in coletor.abertos)
 
 
 def test_eviction_fecha_track_que_some_do_quadro():
