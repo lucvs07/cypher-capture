@@ -1,24 +1,62 @@
 {
   "video": "data/validation/cenario2.mp4",
   "total_frames": 1331,
-  "fps": 30.0,
+  "fps": 29.981979276167593,
   "quedas_reais": 2,
   "transitions": [
-    {"frame": 19,   "track": 1, "from": "normal",                   "to": "immediate_risk"},
-    {"frame": 120,  "track": 1, "from": "immediate_risk",           "to": "normal"},
-    {"frame": 305,  "track": 1, "from": "normal",                   "to": "immediate_risk"},
-    {"frame": 327,  "track": 1, "from": "immediate_risk",           "to": "ergonomically_inadequate"},
-    {"frame": 329,  "track": 1, "from": "ergonomically_inadequate", "to": "immediate_risk"},
-    {"frame": 349,  "track": 1, "from": "immediate_risk",           "to": "ergonomically_inadequate"},
-    {"frame": 405,  "track": 1, "from": "ergonomically_inadequate", "to": "normal"},
-    {"frame": 696,  "track": 1, "from": "normal",                   "to": "immediate_risk"},
-    {"frame": 863,  "track": 1, "from": "immediate_risk",           "to": "normal"},
-    {"frame": 881,  "track": 1, "from": "normal",                   "to": "immediate_risk"},
-    {"frame": 969,  "track": 1, "from": "immediate_risk",           "to": "normal"},
-    {"frame": 1030, "track": 1, "from": "normal",                   "to": "immediate_risk"},
-    {"frame": 1264, "track": 1, "from": "immediate_risk",           "to": "normal"},
-    {"frame": 1270, "track": 1, "from": "normal",                   "to": "immediate_risk"},
-    {"frame": 1328, "track": 4, "from": "normal",                   "to": "immediate_risk"}
+    {
+      "frame": 326,
+      "track": 1,
+      "from": "normal",
+      "to": "ergonomically_inadequate"
+    },
+    {
+      "frame": 328,
+      "track": 1,
+      "from": "ergonomically_inadequate",
+      "to": "immediate_risk"
+    },
+    {
+      "frame": 348,
+      "track": 1,
+      "from": "immediate_risk",
+      "to": "ergonomically_inadequate"
+    },
+    {
+      "frame": 404,
+      "track": 1,
+      "from": "ergonomically_inadequate",
+      "to": "normal"
+    },
+    {
+      "frame": 723,
+      "track": 1,
+      "from": "normal",
+      "to": "immediate_risk"
+    },
+    {
+      "frame": 862,
+      "track": 1,
+      "from": "immediate_risk",
+      "to": "normal"
+    },
+    {
+      "frame": 1036,
+      "track": 1,
+      "from": "normal",
+      "to": "immediate_risk"
+    },
+    {
+      "frame": 1263,
+      "track": 1,
+      "from": "immediate_risk",
+      "to": "normal"
+    }
   ],
-  "vida_dos_tracks": {"1": 1307, "2": 1, "4": 12}
+  "vida_dos_tracks": {
+    "1": 1307,
+    "2": 1,
+    "-1": 2,
+    "4": 12
+  }
 }
