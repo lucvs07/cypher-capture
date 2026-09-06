@@ -69,6 +69,7 @@ class PostureClassifier:
         enter_frames: int = 5,
         exit_frames: int = 15,
         enter_frames_risk: int = 2,
+        fall_confirm_frames: int = 15,
     ) -> None:
         self.fps = fps
         self.t = thresholds or ClassifierThresholds()
@@ -76,9 +77,13 @@ class PostureClassifier:
         self.exit_frames = exit_frames
         # IMMEDIATE_RISK uses a lower entry threshold to maximise recall
         self.enter_frames_risk = enter_frames_risk
+        # Gating temporal de queda (design doc 2026-09-05, §2): janela de
+        # confirmacao antes de reportar IMMEDIATE_RISK via fall_velocity.
+        self.fall_confirm_frames = fall_confirm_frames
         self._states: dict[int, PostureState] = {}
         self._pending: dict[int, tuple[PostureCategory, str, int]] = {}
         self._exit_counters: dict[int, int] = defaultdict(int)
+        self._fall_pending_confirm: dict[int, int] = {}
 
     def update(
         self,
@@ -242,6 +247,30 @@ class PostureClassifier:
             # state goes exclusively through the exit_frames counter in
             # update(), keeping alarms sticky (recall priority).
             self._pending.pop(person_id, None)
+            self._fall_pending_confirm.pop(person_id, None)
+            return None
+
+        # Gating temporal de queda: uma confirmacao de fall_velocity ja esta
+        # em andamento pra este track. So sai daqui confirmando IMMEDIATE_RISK
+        # (via person_fallen) ou descartando o episodio (janela esgotada) —
+        # nunca confirma via fall_velocity puro.
+        if person_id in self._fall_pending_confirm:
+            if reason == "person_fallen":
+                frames_waited = self._fall_pending_confirm.pop(person_id)
+                return PostureState(
+                    category=PostureCategory.IMMEDIATE_RISK,
+                    reason="person_fallen",
+                    frames_in_state=frames_waited,
+                )
+            frames_waited = self._fall_pending_confirm[person_id] + 1
+            if frames_waited >= self.fall_confirm_frames:
+                # Janela esgotada sem confirmacao geometrica — descarta.
+                # O episodio nunca chega a ser visivel fora do classificador
+                # (spec 2026-09-05 §2: elimina o residuo de fall_velocity em
+                # agachamentos rapidos, docs/metricas-dia2.md §5.2).
+                self._fall_pending_confirm.pop(person_id)
+            else:
+                self._fall_pending_confirm[person_id] = frames_waited
             return None
 
         pending = self._pending.get(person_id)
@@ -261,6 +290,11 @@ class PostureClassifier:
         current_cat = self._states.get(person_id, PostureState()).category
         if cat != current_cat and count >= enter_threshold:
             self._pending.pop(person_id)
+            if cat == PostureCategory.IMMEDIATE_RISK and reason == "fall_velocity":
+                # Nao confirma ainda -- abre a janela de confirmacao em vez
+                # de reportar a transicao.
+                self._fall_pending_confirm[person_id] = 0
+                return None
             # The posture already persisted `count` raw frames before being
             # confirmed; start the counter there so sustained_seconds is honest
             # (update() increments once more right after).

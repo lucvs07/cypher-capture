@@ -172,8 +172,10 @@ class TestCategories:
         clf = PostureClassifier(enter_frames_risk=2)  # default fall_risk_min = 0.85
         clf.update(1, neutral_angles(), reba(1), TALL_BBOX, fall_risk=0.9)
         s = clf.update(1, neutral_angles(), reba(1), TALL_BBOX, fall_risk=0.9)
-        assert s.category == PostureCategory.IMMEDIATE_RISK
-        assert s.reason == "fall_velocity"
+        # fall_velocity sozinho (sem geometria de queda) abre a janela de
+        # confirmacao (design doc 2026-09-05, §2) em vez de confirmar direto —
+        # ver TestFallConfirmation para o ciclo completo de confirmacao/descarte.
+        assert s.category == PostureCategory.NORMAL
 
     def test_immediate_risk_via_horizontal_trunk(self):
         # Torso lying horizontal (trunk flexion ~ 90°) is fallen even with no
@@ -313,3 +315,53 @@ class TestSustainedSeconds:
         # frames_in_state advanced; sustained_seconds = frames / fps
         assert s.sustained_seconds == pytest.approx(s.frames_in_state / 10.0)
         assert s.sustained_seconds > 0
+
+
+class TestFallConfirmation:
+    """Gating temporal de queda (design doc 2026-09-05, §2): fall_velocity só
+    vira IMMEDIATE_RISK pra fora se terminar em person_fallen dentro da janela
+    de confirmação — elimina o residuo de falso alarme em agachamentos rápidos
+    (docs/metricas-dia2.md §5.2, precisão 0.418)."""
+
+    def test_fall_velocity_confirmado_por_person_fallen_dentro_da_janela(self):
+        clf = PostureClassifier(enter_frames_risk=2, fall_confirm_frames=5)
+        pid = 1
+        # 2 frames de fall_velocity (TALL_BBOX = sem cue geometrico) -> entra
+        # em confirmacao, nao reporta IMMEDIATE_RISK ainda.
+        assert clf.update(pid, neutral_angles(pid), reba(1), TALL_BBOX, fall_risk=0.9).category == PostureCategory.NORMAL
+        assert clf.update(pid, neutral_angles(pid), reba(1), TALL_BBOX, fall_risk=0.9).category == PostureCategory.NORMAL
+        # ainda dentro da janela (5 frames), person_fallen confirma via bbox largo.
+        s = clf.update(pid, neutral_angles(pid), reba(1), WIDE_BBOX, fall_risk=0.9)
+        assert s.category == PostureCategory.IMMEDIATE_RISK
+        assert s.reason == "person_fallen"
+
+    def test_fall_velocity_sem_confirmacao_nunca_vira_immediate_risk(self):
+        clf = PostureClassifier(enter_frames_risk=2, fall_confirm_frames=3)
+        pid = 1
+        # 2 frames pra entrar em confirmacao, mais 3 frames de janela -- em
+        # nenhum momento person_fallen aparece (agachamento rapido: so velocidade).
+        estados = [
+            clf.update(pid, neutral_angles(pid), reba(1), TALL_BBOX, fall_risk=0.9).category
+            for _ in range(6)
+        ]
+        assert PostureCategory.IMMEDIATE_RISK not in estados
+
+    def test_person_fallen_desde_o_primeiro_frame_confirma_sem_esperar_janela(self):
+        clf = PostureClassifier(enter_frames_risk=2, fall_confirm_frames=10)
+        pid = 1
+        assert clf.update(pid, neutral_angles(pid), reba(1), WIDE_BBOX).category == PostureCategory.NORMAL
+        s = clf.update(pid, neutral_angles(pid), reba(1), WIDE_BBOX)
+        assert s.category == PostureCategory.IMMEDIATE_RISK
+        assert s.reason == "person_fallen"
+
+    def test_confirmacao_antecipada_nao_espera_o_resto_da_janela(self):
+        clf = PostureClassifier(enter_frames_risk=2, fall_confirm_frames=10)
+        pid = 1
+        clf.update(pid, neutral_angles(pid), reba(1), TALL_BBOX, fall_risk=0.9)
+        clf.update(pid, neutral_angles(pid), reba(1), TALL_BBOX, fall_risk=0.9)
+        # so 1 frame dentro da janela de 10 antes de person_fallen confirmar --
+        # nao precisa esperar os outros 9.
+        s = clf.update(pid, neutral_angles(pid), reba(1), WIDE_BBOX, fall_risk=0.9)
+        assert s.category == PostureCategory.IMMEDIATE_RISK
+        assert s.reason == "person_fallen"
+        assert s.frames_in_state == 1
