@@ -8,6 +8,7 @@ from typing import Optional
 
 import yaml
 
+from .heartbeat import HeartbeatSender
 from .incident import ClosedReason, IncidentReport, POSTURE_TO_TYPE, build_incident_key
 from .mjpeg import MjpegServer
 from .sink import ConsoleIncidentSink, HttpIncidentSink, MissingApiKeyError
@@ -49,6 +50,7 @@ class NotifyConfig:
 __all__ = [
     "ClosedReason",
     "ConsoleIncidentSink",
+    "HeartbeatSender",
     "HttpIncidentSink",
     "IncidentReport",
     "IncidentTracker",
