@@ -8,6 +8,7 @@ from typing import Optional
 
 import yaml
 
+from .heartbeat import HeartbeatSender
 from .incident import ClosedReason, IncidentReport, POSTURE_TO_TYPE, build_incident_key
 from .mjpeg import MjpegServer
 from .sink import ConsoleIncidentSink, HttpIncidentSink, MissingApiKeyError
@@ -30,6 +31,9 @@ class NotifyConfig:
     spill_path: str = "outputs/incidents.jsonl"
     stream_port: int = 8090
     stream_enabled: bool = True
+    # spec §2.2 do backend usa este valor como teto do incremento de cobertura
+    # (× 2), entao altera-lo aqui exige mudanca equivalente no backend.
+    heartbeat_interval_seconds: float = 30.0
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
     @property
@@ -49,6 +53,7 @@ class NotifyConfig:
 __all__ = [
     "ClosedReason",
     "ConsoleIncidentSink",
+    "HeartbeatSender",
     "HttpIncidentSink",
     "IncidentReport",
     "IncidentTracker",

@@ -64,6 +64,7 @@ notify:
   spill_path: outputs/incidents.jsonl
   stream_port: 8090
   stream_enabled: true
+  heartbeat_interval_seconds: 30      # POST /cameras/{id}/heartbeat neste intervalo (métrica de cobertura E5); mudar aqui exige mudança equivalente no backend (spec §2.2 usa este valor no teto do incremento)
 
 capture:
   rtsp_transport: tcp                 # UDP sob carga gera artefato lido como movimento

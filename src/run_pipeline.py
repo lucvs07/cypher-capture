@@ -43,7 +43,7 @@ from src.capture import (
 )
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
 from src.notify import (
-    ConsoleIncidentSink, HttpIncidentSink, IncidentTracker,
+    ConsoleIncidentSink, HeartbeatSender, HttpIncidentSink, IncidentTracker,
     MissingApiKeyError, MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
@@ -221,6 +221,11 @@ def main() -> None:
                 api_key_env=notify_config.api_key_env,
                 api_key=chave_provisionada,
             )
+            heartbeat_sender = HeartbeatSender(
+                notify_config.api_url, notify_config.camera_id,
+                api_key_env=notify_config.api_key_env, api_key=chave_provisionada,
+                interval_seconds=notify_config.heartbeat_interval_seconds,
+            )
         except MissingApiKeyError as erro:
             raise SystemExit(f"[notify] {erro}")
         print(f"[notify] enviando incidentes para {notify_config.api_url} "
@@ -230,6 +235,7 @@ def main() -> None:
     else:
         sink = ConsoleIncidentSink()
         print("[notify] sem api_url: incidentes apenas impressos")
+        heartbeat_sender = None
     sink.start()
 
     tracker = IncidentTracker(
@@ -361,6 +367,9 @@ def main() -> None:
 
             tracker.process(events, datetime.now(timezone.utc).astimezone(),
                             frame=annotated)
+
+            if heartbeat_sender is not None:
+                heartbeat_sender.enviar_se_necessario()
 
             # Burn a compact HUD onto the saved/displayed frame too
             cv2.putText(annotated, f"{dt_ms:.0f}ms  {fps:.1f}FPS  stride={pipeline._epi_stride}",
