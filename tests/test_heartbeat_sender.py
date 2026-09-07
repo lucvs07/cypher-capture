@@ -7,7 +7,10 @@ frame) — design doc de gamificação E5, §2.1/§9 "Python".
 """
 from __future__ import annotations
 
+import pytest
+
 from src.notify.heartbeat import HeartbeatSender
+from src.notify.sink import MissingApiKeyError
 
 
 class TransporteFake:
@@ -92,3 +95,36 @@ def test_sem_chave_resolvida_nao_envia_nem_lanca():
     sender.enviar_se_necessario()
 
     assert transporte.chamadas == []
+
+
+def test_api_key_env_resolvido_via_env_injetado():
+    transporte = TransporteFake()
+    agora, _ = relogio()
+    sender = HeartbeatSender("http://api/api/v1", "CAM-01",
+                             api_key_env="CYPHER_KEY", env={"CYPHER_KEY": "k1"},
+                             transport=transporte, now=agora)
+
+    sender.enviar_se_necessario()
+
+    assert transporte.chamadas == [
+        ("http://api/api/v1/cameras/CAM-01/heartbeat", {"X-Cypher-Key": "k1"})]
+
+
+def test_api_key_explicito_vence_api_key_env():
+    transporte = TransporteFake()
+    agora, _ = relogio()
+    sender = HeartbeatSender("http://api/api/v1", "CAM-01",
+                             api_key="explicita", api_key_env="CYPHER_KEY",
+                             env={"CYPHER_KEY": "do-env"},
+                             transport=transporte, now=agora)
+
+    sender.enviar_se_necessario()
+
+    assert transporte.chamadas == [
+        ("http://api/api/v1/cameras/CAM-01/heartbeat", {"X-Cypher-Key": "explicita"})]
+
+
+def test_api_key_env_ausente_levanta_no_construtor():
+    with pytest.raises(MissingApiKeyError):
+        HeartbeatSender("http://api/api/v1", "CAM-01",
+                        api_key_env="FALTA", env={}, transport=TransporteFake())

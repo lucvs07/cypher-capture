@@ -53,7 +53,17 @@ class HeartbeatSender:
             api_key_env, env if env is not None else os.environ)
         self._headers: Optional[dict[str, str]] = (
             {"X-Cypher-Key": chave} if chave is not None else None)
-        self.interval = interval_seconds
+        if self._headers is None:
+            log.warning(
+                "Heartbeat desativado para %s: sem api_key/api_key_env resolvido "
+                "— a metrica de cobertura E5 desta camera ficara zerada.", self.url)
+
+        self.interval = float(interval_seconds)
+        if self.interval <= 0:
+            log.warning(
+                "Heartbeat desativado para %s: interval_seconds=%r nao e positivo.",
+                self.url, interval_seconds)
+            self._headers = None
         self.transport = transport or RequestsHeartbeatTransport()
         self._now = now or time.monotonic
         self._ultimo_envio: Optional[float] = None

@@ -221,17 +221,17 @@ def main() -> None:
                 api_key_env=notify_config.api_key_env,
                 api_key=chave_provisionada,
             )
+            heartbeat_sender = HeartbeatSender(
+                notify_config.api_url, notify_config.camera_id,
+                api_key_env=notify_config.api_key_env, api_key=chave_provisionada,
+                interval_seconds=notify_config.heartbeat_interval_seconds,
+            )
         except MissingApiKeyError as erro:
             raise SystemExit(f"[notify] {erro}")
         print(f"[notify] enviando incidentes para {notify_config.api_url} "
               f"como {notify_config.camera_id} (run {notify_config.run_id})")
         if notify_config.api_key_env:
             print(f"[notify] X-Cypher-Key resolvido via {notify_config.api_key_env}")
-        heartbeat_sender = HeartbeatSender(
-            notify_config.api_url, notify_config.camera_id,
-            api_key_env=notify_config.api_key_env, api_key=chave_provisionada,
-            interval_seconds=notify_config.heartbeat_interval_seconds,
-        )
     else:
         sink = ConsoleIncidentSink()
         print("[notify] sem api_url: incidentes apenas impressos")
