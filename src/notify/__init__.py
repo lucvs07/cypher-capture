@@ -31,6 +31,7 @@ class NotifyConfig:
     spill_path: str = "outputs/incidents.jsonl"
     stream_port: int = 8090
     stream_enabled: bool = True
+    heartbeat_interval_seconds: float = 30.0
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
     @property
