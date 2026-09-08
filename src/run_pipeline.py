@@ -47,6 +47,7 @@ from src.notify import (
     MissingApiKeyError, MjpegServer, NotifyConfig, TrackerConfig,
 )
 from src.utils.pose_visualization import draw_epi_boxes
+from src.utils.video import apply_rotation
 from src.zones import ZoneConfigClient, ZoneDetector, ZoneHotReloader, ZoneManager, Zone
 
 
@@ -119,6 +120,14 @@ def parse_args() -> argparse.Namespace:
                         "remotas em segundo plano e aplicar sem reiniciar o "
                         "pipeline; 0 desativa (default: 30). Ignorado quando "
                         "--zones (arquivo local explicito) e usado.")
+    p.add_argument("--rotate", type=int, default=0, choices=[0, 90, 180, 270],
+                   help="graus (sentido horario) para corrigir uma camera "
+                        "montada fisicamente virada (instalacao tipo corredor) "
+                        "— aplicado em cada frame bruto antes de qualquer "
+                        "analise. 90/270 trocam largura x altura, o que muda "
+                        "a resolucao usada para buscar zonas no cadastro; "
+                        "zonas calibradas na orientacao antiga precisam ser "
+                        "re-desenhadas (scripts/annotate_zones.py) apos girar.")
     return p.parse_args()
 
 
@@ -133,6 +142,8 @@ def main() -> None:
 
     print(f"[config] device={config.device}  pose={config.pose_model_path}  epi={config.epi_model_path}")
     print(f"[config] zones={config.zones_config}  target_fps={config.target_fps}  budget={config.max_latency_ms:.0f}ms")
+    if args.rotate:
+        print(f"[config] rotate={args.rotate}° (horario) aplicado em cada frame bruto")
 
     capture_config = CaptureConfig.from_yaml(args.config)
     aplicar_opcoes_ffmpeg(capture_config, os.environ)
@@ -276,6 +287,8 @@ def main() -> None:
     ).open()
     width = cap.width
     height = cap.height
+    if args.rotate in (90, 270):
+        width, height = height, width
     src_fps = cap.fps
 
     zone_reloader = None
@@ -342,6 +355,9 @@ def main() -> None:
                 # continua girando em vez de encerrar a execução.
                 time.sleep(0.005)
                 continue
+
+            if args.rotate:
+                frame = apply_rotation(frame, args.rotate)
 
             t0 = time.perf_counter()
             annotated, events = pipeline.process_frame(frame)

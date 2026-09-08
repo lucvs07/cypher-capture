@@ -3,6 +3,28 @@ from __future__ import annotations
 from pathlib import Path
 
 import cv2
+import numpy as np
+
+_ROTATE_CODES = {
+    90: cv2.ROTATE_90_CLOCKWISE,
+    180: cv2.ROTATE_180,
+    270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+}
+
+
+def apply_rotation(frame: np.ndarray, degrees: int) -> np.ndarray:
+    """Rotate a decoded frame clockwise by ``degrees`` (0/90/180/270).
+
+    Some RTSP cameras are mounted physically turned (corridor-style
+    install) and stream the raw sensor orientation with no rotation
+    metadata — the scene comes in sideways while anything the camera
+    itself burns into the frame (its own on-screen-display) stays upright
+    in the *sensor's* coordinate frame, not the real world's. OpenCV can't
+    detect this from the stream; it has to be told per camera.
+    """
+    if degrees == 0:
+        return frame
+    return cv2.rotate(frame, _ROTATE_CODES[degrees])
 
 
 def resolve_source(source: int | str | Path) -> int | str:
