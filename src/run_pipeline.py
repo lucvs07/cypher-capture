@@ -256,7 +256,17 @@ def main() -> None:
     if notify_config.stream_enabled:
         stream = MjpegServer(port=notify_config.stream_port)
         stream.start()
-        pipeline.set_frame_publisher(stream.publish)
+
+        def _publish(frame):
+            # pipeline.process_frame() publishes before returning, i.e.
+            # before this module's own --show-epi overlay runs (below) —
+            # draw it here too so the live stream carries the boxes, not
+            # just the local window/--output file.
+            if args.show_epi:
+                draw_epi_boxes(frame, pipeline._last_epi_bboxes, pipeline._last_epi_labels)
+            stream.publish(frame)
+
+        pipeline.set_frame_publisher(_publish)
         print(f"[stream] video ao vivo em http://127.0.0.1:{stream.port}/stream")
 
     cap = ResilientCapture(
@@ -337,7 +347,9 @@ def main() -> None:
             annotated, events = pipeline.process_frame(frame)
             dt_ms = (time.perf_counter() - t0) * 1000
 
-            if args.show_epi:
+            if args.show_epi and stream is None:
+                # Stream path already drew these in the frame_publisher above
+                # (same array, mutated in place) — avoid drawing them twice.
                 annotated = draw_epi_boxes(
                     annotated, pipeline._last_epi_bboxes, pipeline._last_epi_labels
                 )
