@@ -121,6 +121,8 @@ Para um modelo de pose mais rápido ou mais preciso, troque em `config/pose_conf
 
 Este é o entry-point principal. Ele lê todos os parâmetros de `config/pose_config.yaml`.
 
+> Para subir os 3 projetos do sistema juntos (backend + front + este pipeline, com dado real da empresa `demo`), use `scripts/subir-empresa-demo.sh` (mesmo script, também presente em `cypher` e `cypher-front` — roda a partir de qualquer um dos três): `./scripts/subir-empresa-demo.sh start` / `status` / `logs` / `stop`. Detalhes: [`arquitetura.md`](https://github.com/Ronaldovels/cypher-front/blob/dev/docs/arquitetura.md) do `cypher-front`. As instruções abaixo são para rodar só este pipeline isoladamente.
+
 ```bash
 # Webcam, com janela ao vivo (use cuda para cumprir a latência)
 python src/run_pipeline.py --source 0 --device cuda
