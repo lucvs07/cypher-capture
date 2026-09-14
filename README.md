@@ -340,7 +340,7 @@ cp outputs/runs/ppe_train/weights/best.pt models/exp.pt
 
 ## Vídeo de demonstração
 
-**Link:** `[PREENCHER: link do vídeo]`
+https://github.com/user-attachments/assets/da582c0c-9bc6-4ca3-9de6-844e875141b9
 
 Vídeo único, centralizado no repositório principal ([`cypher-front`](https://github.com/Ronaldovels/cypher-front#-vídeo-de-demonstração)), navegando pelas principais telas do sistema com os 3 projetos rodando localmente (dado real da empresa `demo`).
 
