@@ -68,7 +68,8 @@ start_bg() {
     log "já rodando (pid $(cat "$pidfile")), pulando: $*"
     return 0
   fi
-  ( cd "$dir" && setsid "$@" >"$logfile" 2>&1 & echo $! >"$pidfile" )
+  ( cd "$dir" && exec setsid "$@" >"$logfile" 2>&1 ) &
+  echo $! >"$pidfile"
   sleep 0.3
 }
 
@@ -101,11 +102,12 @@ wait_for_health() {
 }
 
 cmd_start() {
-  local no_seed=0 use_orchestrator=0 device="cuda"
+  local no_seed=0 use_orchestrator=0 no_capture=0 device="cuda"
   while [ $# -gt 0 ]; do
     case "$1" in
       --no-seed) no_seed=1 ;;
       --orchestrator) use_orchestrator=1 ;;
+      --no-capture) no_capture=1 ;;
       --device) device="$2"; shift ;;
       *) die "flag desconhecida: $1" ;;
     esac
@@ -135,7 +137,9 @@ cmd_start() {
   start_bg "$FRONT_PID_FILE" "$FRONT_LOG" "$FRONT_DIR" npm start
 
   log "4/4 — capture ($CAPTURE_DIR)"
-  if [ "$use_orchestrator" -eq 1 ]; then
+  if [ "$no_capture" -eq 1 ]; then
+    log "capture pulado (--no-capture) — suba manualmente com run_pipeline.py se precisar de múltiplas câmeras/vídeos de validação"
+  elif [ "$use_orchestrator" -eq 1 ]; then
     log "modo orquestrador — reconcilia todo o catálogo (precisa de .env com credenciais RTSP reais para as câmeras da meta indústria)"
     start_bg "$CAPTURE_PID_FILE" "$CAPTURE_LOG" "$CAPTURE_DIR" \
       ./venv/bin/python -m src.orchestrator --api-url "$API_URL"
