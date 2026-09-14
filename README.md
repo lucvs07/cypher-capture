@@ -338,6 +338,12 @@ cp outputs/runs/ppe_train/weights/best.pt models/exp.pt
 
 ---
 
+## Vídeo de demonstração
+
+**Link:** `[PREENCHER: link do vídeo]`
+
+Vídeo único, centralizado no repositório principal ([`cypher-front`](https://github.com/Ronaldovels/cypher-front#-vídeo-de-demonstração)), navegando pelas principais telas do sistema com os 3 projetos rodando localmente (dado real da empresa `demo`).
+
 ## Gestão ágil (Sprint 3)
 
 - Board Trello: https://trello.com/b/AqgHhHCP/dev4-cypher-challenge
