@@ -10,6 +10,16 @@ algumas cameras baratas limitam quantos clientes RTSP conectam ao mesmo
 tempo no mesmo canal; se a captura falhar com o pipeline de deteccao
 rodando na mesma camera, tente rodar so um dos dois primeiro).
 
+Achado de campo (SPI 2026-09-16): ja tentamos abrir/fechar a conexao RTSP
+a cada frame pra coexistir com o run_pipeline.py na mesma camera — piorou.
+Essas NVRs penalizam reconexao rapida: numa execucao de 5min a cadencia
+real degradou de ~10s pra ~70s por ciclo (conexoes anteriores nao fechavam
+de verdade a tempo e se acumulavam), e trocar de biblioteca pra evitar
+esse vazamento so trocou o sintoma — o proprio open() passou a travar por
+~30s. Mantenha a conexao persistente (como esta agora) e resolva a
+disputa de outro jeito: rode este script com o(s) run_pipeline.py da(s)
+mesma(s) camera(s) parado(s).
+
 Usage:
     python scripts/capture_dataset.py --api-url http://localhost:8080/api/v1
     python scripts/capture_dataset.py --cameras CAM-FRESA1,CAM-SICK \
@@ -89,67 +99,41 @@ def capturar_camera(camera_id: str, api_url: str, interval_s: float,
         print(f"[{camera_id}] desativada no cadastro — pulando")
         return
 
-    # Achado de campo (SPI 2026-09-16): manter a conexao RTSP aberta pela
-    # duracao inteira derrubou o cliente do run_pipeline.py rodando ao mesmo
-    # tempo na mesma camera — varias dessas cameras baratas so aceitam 1
-    # cliente RTSP por canal, e o segundo cliente expulsa o primeiro. Agora
-    # conecta, tira 1 frame, desconecta — a janela de disputa cai de
-    # "duration_s inteiro" pra "menos de 1s por captura", nao elimina o
-    # risco mas reduz bastante.
-    print(f"[{camera_id}] capturando por {duration_s:.0f}s, 1 frame a cada {interval_s:.0f}s "
-          f"(conecta so no instante da captura)")
+    try:
+        cap = ResilientCapture(config.fonte).open()
+    except RuntimeError as erro:
+        print(f"[{camera_id}] {erro}")
+        return
+
+    print(f"[{camera_id}] capturando por {duration_s:.0f}s, 1 frame a cada {interval_s:.0f}s")
     enviados = 0
     t_fim = time.monotonic() + duration_s
+    proxima = time.monotonic()
 
-    while time.monotonic() < t_fim:
-        inicio_ciclo = time.monotonic()
+    try:
+        while time.monotonic() < t_fim:
+            ret, frame = cap.read()
+            if not ret:
+                time.sleep(0.05)
+                continue
 
-        try:
-            cap = ResilientCapture(config.fonte).open()
-        except RuntimeError as erro:
-            print(f"[{camera_id}] falha ao conectar nesta captura: {erro}")
-            time.sleep(max(0.0, interval_s - (time.monotonic() - inicio_ciclo)))
-            continue
+            agora = time.monotonic()
+            if agora < proxima:
+                time.sleep(min(0.1, proxima - agora))
+                continue
+            proxima = agora + interval_s
 
-        try:
-            # ResilientCapture.read() para fonte ao vivo eh nao-bloqueante:
-            # devolve (False, None) se a thread de leitura em background
-            # ainda nao decodificou o 1o frame. O handshake RTSP leva
-            # tipicamente 1-3s, entao um read() unico logo apos open()
-            # falha quase sempre — poll curto ate um frame chegar ou estourar
-            # o timeout.
-            ret, frame = False, None
-            limite_leitura = time.monotonic() + 4.0
-            while time.monotonic() < limite_leitura:
-                ret, frame = cap.read()
-                if ret:
-                    break
-                time.sleep(0.1)
-        finally:
-            cap.release()
-
-        if not ret:
-            print(f"[{camera_id}] frame indisponivel nesta captura, tentando de novo em {interval_s:.0f}s")
-            time.sleep(max(0.0, interval_s - (time.monotonic() - inicio_ciclo)))
-            continue
-
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            cv2.imwrite(tmp.name, frame)
-            resposta = cloudinary.uploader.upload(
-                tmp.name, folder=f"{folder}/{camera_id}", public_id=ts)
-        os.unlink(tmp.name)
-        enviados += 1
-        print(f"[{camera_id}] {enviados:4d} enviado: {resposta['secure_url']}")
-
-        # Desconta do intervalo pedido o tempo ja gasto conectando, lendo e
-        # subindo pro Cloudinary — senao a cadencia real fica mais espacada
-        # que --interval-seconds (o usuario pediu "diversas fotos", nao
-        # queremos entregar menos por causa do overhead da conexao nova a
-        # cada ciclo).
-        time.sleep(max(0.0, interval_s - (time.monotonic() - inicio_ciclo)))
-
-    print(f"[{camera_id}] encerrado — {enviados} frame(s) enviados")
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                cv2.imwrite(tmp.name, frame)
+                resposta = cloudinary.uploader.upload(
+                    tmp.name, folder=f"{folder}/{camera_id}", public_id=ts)
+            os.unlink(tmp.name)
+            enviados += 1
+            print(f"[{camera_id}] {enviados:4d} enviado: {resposta['secure_url']}")
+    finally:
+        cap.release()
+        print(f"[{camera_id}] encerrado — {enviados} frame(s) enviados")
 
 
 def main() -> None:
