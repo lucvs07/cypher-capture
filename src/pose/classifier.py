@@ -94,9 +94,11 @@ class PostureClassifier:
         in_critical_zone: bool = False,
         fall_risk: float = 0.0,
         ergonomic_eval_enabled: bool = True,
+        bbox_truncated: bool = False,
     ) -> PostureState:
         raw_cat, raw_reason = self._evaluate_rules(
-            angles, reba, bbox, in_critical_zone, fall_risk, ergonomic_eval_enabled
+            angles, reba, bbox, in_critical_zone, fall_risk, ergonomic_eval_enabled,
+            bbox_truncated,
         )
         state = self._apply_hysteresis(person_id, raw_cat, raw_reason)
 
@@ -138,10 +140,11 @@ class PostureClassifier:
         in_critical_zone: bool,
         fall_risk: float,
         ergonomic_eval_enabled: bool = True,
+        bbox_truncated: bool = False,
     ) -> tuple[PostureCategory, str]:
         # Priority order: IMMEDIATE_RISK > CRITICAL_ZONE > ERGONOMICALLY_INADEQUATE
 
-        if self._detect_fallen(bbox, angles):
+        if self._detect_fallen(bbox, angles, bbox_truncated):
             return PostureCategory.IMMEDIATE_RISK, "person_fallen"
 
         # Covers falls toward/away from the camera where the bbox never widens
@@ -175,7 +178,7 @@ class PostureClassifier:
 
         return PostureCategory.NORMAL, ""
 
-    def _detect_fallen(self, bbox: tuple, angles: JointAngles) -> bool:
+    def _detect_fallen(self, bbox: tuple, angles: JointAngles, bbox_truncated: bool = False) -> bool:
         """Person on the ground / horizontal.
 
         OR of complementary cues so different fall geometries are all caught
@@ -190,11 +193,19 @@ class PostureClassifier:
         The last two are velocity-independent, so a person who has fallen and
         gone still keeps the alarm asserted (combined with the sticky exit
         hysteresis) instead of decaying back to NORMAL.
+
+        `bbox_truncated` (achado de campo, SPI 2026-09-16): quando a pessoa
+        esta colada na borda do frame (perto demais da camera, corpo cortado),
+        o bbox visivel fica largo e baixo por causa do corte, nao da postura —
+        o cue de aspect ratio sozinho vira falso-positivo. Nesse caso ele e
+        pulado; os outros dois cues (que dependem de keypoints, nao so do
+        retangulo) continuam valendo e ainda pegam uma queda real perto da
+        borda.
         """
         x1, y1, x2, y2 = bbox
         w = max(x2 - x1, 1.0)
         h = max(y2 - y1, 1.0)
-        if (w / h) > self.t.fallen_aspect_ratio:
+        if not bbox_truncated and (w / h) > self.t.fallen_aspect_ratio:
             return True
         if angles.trunk_flexion is not None and angles.trunk_flexion > self.t.fallen_trunk_deg:
             return True

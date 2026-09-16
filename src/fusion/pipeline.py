@@ -152,6 +152,9 @@ class UnifiedPipeline:
             person_bboxes, self._last_epi_bboxes, self._last_epi_labels
         )
 
+        frame_height, frame_width = frame.shape[:2]
+        edge_margin = 5.0  # px — bbox colado na borda = pessoa cortada, nao deitada
+
         events: list[PersonEvent] = []
         for pose in poses:
             angles = extract_angles(pose, self._vertical_reference)
@@ -181,10 +184,17 @@ class UnifiedPipeline:
                 is_bad_posture=prev_state.category != PostureCategory.NORMAL,
             )
 
+            x1, y1, x2, y2 = pose.bbox
+            bbox_truncated = (
+                x1 <= edge_margin or y1 <= edge_margin
+                or x2 >= frame_width - edge_margin or y2 >= frame_height - edge_margin
+            )
+
             posture_state = self._classifier.update(
                 pose.person_id, angles, reba, pose.bbox, in_zone,
                 fall_risk=metrics.fall_risk_score,
                 ergonomic_eval_enabled=ergonomic_eval_enabled,
+                bbox_truncated=bbox_truncated,
             )
 
             epi_labels = epi_assoc.get(pose.person_id, [])

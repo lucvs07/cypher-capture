@@ -415,3 +415,33 @@ class TestGateDeZona:
         clf.update(1, neutral_angles(1), reba(9), TALL_BBOX)
         estado = clf.update(1, neutral_angles(1), reba(9), TALL_BBOX)
         assert estado.category == PostureCategory.ERGONOMICALLY_INADEQUATE
+
+
+class TestBboxTruncadoNaBorda:
+    """Achado de campo (SPI 2026-09-16): pessoa colada na borda do frame gera
+    bbox largo/baixo so pelo corte, nao pela postura — o cue de aspect ratio
+    sozinho nao pode confiar nisso quando o bbox esta truncado."""
+
+    def test_bbox_truncado_nao_dispara_fallen_por_aspecto(self):
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX, bbox_truncated=True)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX, bbox_truncated=True)
+        assert estado.category == PostureCategory.NORMAL
+
+    def test_bbox_nao_truncado_continua_disparando_fallen_por_aspecto(self):
+        """Regressao: comportamento antigo preservado quando bbox_truncated=False (default)."""
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+        assert estado.reason == "person_fallen"
+
+    def test_bbox_truncado_mas_trunk_flexion_horizontal_ainda_dispara(self):
+        """Queda real perto da borda ainda e pega pelos outros cues (keypoints),
+        so o cue de aspect-ratio-puro e desativado."""
+        clf = PostureClassifier(enter_frames_risk=1)
+        deitado = JointAngles(person_id=1, trunk_flexion=80.0)
+        clf.update(1, deitado, reba(1), TALL_BBOX, bbox_truncated=True)
+        estado = clf.update(1, deitado, reba(1), TALL_BBOX, bbox_truncated=True)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+        assert estado.reason == "person_fallen"
