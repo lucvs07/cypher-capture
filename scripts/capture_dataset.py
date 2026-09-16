@@ -89,41 +89,48 @@ def capturar_camera(camera_id: str, api_url: str, interval_s: float,
         print(f"[{camera_id}] desativada no cadastro — pulando")
         return
 
-    try:
-        cap = ResilientCapture(config.fonte).open()
-    except RuntimeError as erro:
-        print(f"[{camera_id}] {erro}")
-        return
-
-    print(f"[{camera_id}] capturando por {duration_s:.0f}s, 1 frame a cada {interval_s:.0f}s")
+    # Achado de campo (SPI 2026-09-16): manter a conexao RTSP aberta pela
+    # duracao inteira derrubou o cliente do run_pipeline.py rodando ao mesmo
+    # tempo na mesma camera — varias dessas cameras baratas so aceitam 1
+    # cliente RTSP por canal, e o segundo cliente expulsa o primeiro. Agora
+    # conecta, tira 1 frame, desconecta — a janela de disputa cai de
+    # "duration_s inteiro" pra "menos de 1s por captura", nao elimina o
+    # risco mas reduz bastante.
+    print(f"[{camera_id}] capturando por {duration_s:.0f}s, 1 frame a cada {interval_s:.0f}s "
+          f"(conecta so no instante da captura)")
     enviados = 0
     t_fim = time.monotonic() + duration_s
-    proxima = time.monotonic()
 
-    try:
-        while time.monotonic() < t_fim:
+    while time.monotonic() < t_fim:
+        try:
+            cap = ResilientCapture(config.fonte).open()
+        except RuntimeError as erro:
+            print(f"[{camera_id}] falha ao conectar nesta captura: {erro}")
+            time.sleep(interval_s)
+            continue
+
+        try:
             ret, frame = cap.read()
-            if not ret:
-                time.sleep(0.05)
-                continue
+        finally:
+            cap.release()
 
-            agora = time.monotonic()
-            if agora < proxima:
-                time.sleep(min(0.1, proxima - agora))
-                continue
-            proxima = agora + interval_s
+        if not ret:
+            print(f"[{camera_id}] frame indisponivel nesta captura, tentando de novo em {interval_s:.0f}s")
+            time.sleep(interval_s)
+            continue
 
-            ts = time.strftime("%Y%m%d_%H%M%S")
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-                cv2.imwrite(tmp.name, frame)
-                resposta = cloudinary.uploader.upload(
-                    tmp.name, folder=f"{folder}/{camera_id}", public_id=ts)
-            os.unlink(tmp.name)
-            enviados += 1
-            print(f"[{camera_id}] {enviados:4d} enviado: {resposta['secure_url']}")
-    finally:
-        cap.release()
-        print(f"[{camera_id}] encerrado — {enviados} frame(s) enviados")
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+            cv2.imwrite(tmp.name, frame)
+            resposta = cloudinary.uploader.upload(
+                tmp.name, folder=f"{folder}/{camera_id}", public_id=ts)
+        os.unlink(tmp.name)
+        enviados += 1
+        print(f"[{camera_id}] {enviados:4d} enviado: {resposta['secure_url']}")
+
+        time.sleep(interval_s)
+
+    print(f"[{camera_id}] encerrado — {enviados} frame(s) enviados")
 
 
 def main() -> None:
