@@ -381,3 +381,37 @@ class TestFallConfirmation:
         s = clf.update(pid, unstable, reba(1), TALL_BBOX)
         assert s.category == PostureCategory.IMMEDIATE_RISK
         assert s.reason == "balance_loss_risk"
+
+
+class TestGateDeZona:
+    """Alerta ergonomico (REBA/postura sustentada) so vale dentro da zona
+    configurada; queda e zona critica continuam ativas sempre (achado da
+    auditoria: zona so alimentava um flag, nao restringia nada)."""
+
+    def test_reba_alto_fora_da_zona_com_gate_desativado_nao_dispara(self):
+        clf = PostureClassifier(enter_frames=1)
+        estado = clf.update(1, neutral_angles(1), reba(9), TALL_BBOX,
+                             ergonomic_eval_enabled=False)
+        assert estado.category == PostureCategory.NORMAL
+
+    def test_reba_alto_com_gate_ativado_dispara(self):
+        clf = PostureClassifier(enter_frames=1)
+        clf.update(1, neutral_angles(1), reba(9), TALL_BBOX, ergonomic_eval_enabled=True)
+        estado = clf.update(1, neutral_angles(1), reba(9), TALL_BBOX,
+                             ergonomic_eval_enabled=True)
+        assert estado.category == PostureCategory.ERGONOMICALLY_INADEQUATE
+
+    def test_queda_dispara_mesmo_com_gate_desativado(self):
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX, ergonomic_eval_enabled=False)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX,
+                             ergonomic_eval_enabled=False)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+
+    def test_gate_default_preserva_comportamento_atual(self):
+        """Quem nao passa o kwarg novo continua avaliando ergonomia sempre
+        (compatibilidade com todo o resto da suite que ja chama update sem ele)."""
+        clf = PostureClassifier(enter_frames=1)
+        clf.update(1, neutral_angles(1), reba(9), TALL_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(9), TALL_BBOX)
+        assert estado.category == PostureCategory.ERGONOMICALLY_INADEQUATE

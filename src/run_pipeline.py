@@ -120,14 +120,22 @@ def parse_args() -> argparse.Namespace:
                         "remotas em segundo plano e aplicar sem reiniciar o "
                         "pipeline; 0 desativa (default: 30). Ignorado quando "
                         "--zones (arquivo local explicito) e usado.")
-    p.add_argument("--rotate", type=int, default=0, choices=[0, 90, 180, 270],
+    p.add_argument("--rotate", type=int, default=None, choices=[0, 90, 180, 270],
                    help="graus (sentido horario) para corrigir uma camera "
                         "montada fisicamente virada (instalacao tipo corredor) "
                         "— aplicado em cada frame bruto antes de qualquer "
                         "analise. 90/270 trocam largura x altura, o que muda "
                         "a resolucao usada para buscar zonas no cadastro; "
                         "zonas calibradas na orientacao antiga precisam ser "
-                        "re-desenhadas (scripts/annotate_zones.py) apos girar.")
+                        "re-desenhadas (scripts/annotate_zones.py) apos girar. "
+                        "Default: le do cadastro da camera (campo rotacao); "
+                        "se nem cadastro nem esta flag informarem, usa 0.")
+    p.add_argument("--camera-roll-deg", type=float, default=None,
+                   help="graus de inclinacao lateral (roll) da camera, so "
+                        "para corrigir o calculo de flexao de tronco do REBA "
+                        "— nao gira o frame (diferente de --rotate). Default: "
+                        "le do cadastro (campo anguloCameraGraus); sem "
+                        "cadastro nem flag, usa 0.")
     return p.parse_args()
 
 
@@ -142,8 +150,6 @@ def main() -> None:
 
     print(f"[config] device={config.device}  pose={config.pose_model_path}  epi={config.epi_model_path}")
     print(f"[config] zones={config.zones_config}  target_fps={config.target_fps}  budget={config.max_latency_ms:.0f}ms")
-    if args.rotate:
-        print(f"[config] rotate={args.rotate}° (horario) aplicado em cada frame bruto")
 
     capture_config = CaptureConfig.from_yaml(args.config)
     aplicar_opcoes_ffmpeg(capture_config, os.environ)
@@ -199,6 +205,18 @@ def main() -> None:
     elif args.camera_id and not args.source:
         print(f"[config] cadastro indisponivel e sem cache para {args.camera_id}; "
               f"informe --source")
+
+    rotate = args.rotate if args.rotate is not None else (
+        config_remota.rotacao if config_remota is not None else 0)
+    camera_roll_deg = args.camera_roll_deg if args.camera_roll_deg is not None else (
+        config_remota.angulo_camera_graus if config_remota is not None else 0.0)
+    args.rotate = rotate  # normaliza pro resto do arquivo, que ja usa args.rotate
+    config.camera_roll_deg = camera_roll_deg
+
+    if rotate:
+        print(f"[config] rotate={rotate}° (horario) aplicado em cada frame bruto")
+    if camera_roll_deg:
+        print(f"[config] camera_roll_deg={camera_roll_deg}° aplicado so no calculo de flexao de tronco")
 
     if not fonte:
         p_erro = ("Informe --source, ou --camera-id com --api-url apontando "
@@ -381,7 +399,7 @@ def main() -> None:
             hud = (f"f{frame_idx:5d}  {dt_ms:6.1f}ms (avg {avg:5.1f} | {fps:4.1f} FPS)  "
                    f"pose {tm.get('pose_ms', 0):5.1f} | epi {tm.get('epi_ms', 0):5.1f}{epi_tag} | "
                    f"analysis {tm.get('analysis_ms', 0):4.1f} | overlay {tm.get('overlay_ms', 0):4.1f} | "
-                   f"stride {pipeline._epi_stride}")
+                   f"stride {pipeline._epi_stride} | indeterm {pipeline.indeterminate_rate * 100:4.1f}%")
             print(hud, end="\r", flush=True)
 
             # Event sink: surface anything at/above the severity threshold

@@ -97,6 +97,8 @@ class CameraConfig:
     ativa: bool
     origem: str                      # "api" | "cache"
     idade_segundos: float = 0.0
+    rotacao: int = 0
+    angulo_camera_graus: int = 0
 
     @property
     def do_cache(self) -> bool:
@@ -170,6 +172,8 @@ class CameraConfigClient:
             fonte=expand_placeholders(bruto.get("fonte"), env),
             stream_port=bruto.get("streamPort"),
             ativa=bool(bruto.get("ativa", True)),
+            rotacao=int(bruto.get("rotacao") or 0),
+            angulo_camera_graus=int(bruto.get("anguloCameraGraus") or 0),
             origem=origem,
             idade_segundos=idade,
         )

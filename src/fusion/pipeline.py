@@ -7,6 +7,7 @@ Latency management: if combined inference exceeds max_latency_ms, EPI model skip
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import dataclass, field, fields
 from typing import Optional
 
@@ -16,8 +17,9 @@ import yaml
 from ultralytics import YOLO
 
 from ..pose.estimator import PersonPose, PoseEstimator
-from ..pose.angles import extract_angles
+from ..pose.angles import extract_angles, vertical_from_roll
 from ..pose.reba import compute_reba
+from ..pose.reba_smoother import RebaSmoother
 from ..pose.classifier import ClassifierThresholds, PostureCategory, PostureClassifier
 from ..pose.temporal import TemporalAnalyzer
 from ..zones.manager import ZoneManager
@@ -34,6 +36,8 @@ class PipelineConfig:
     device: str = "cpu"
     conf_epi: float = 0.5
     conf_pose: float = 0.5
+    kp_confidence: float = 0.5
+    camera_roll_deg: float = 0.0
     zones_config: str = "config/zones/zones.json"
     target_fps: float = 15.0
     max_latency_ms: float = 200.0
@@ -76,7 +80,10 @@ class UnifiedPipeline:
 
     def __init__(self, config: PipelineConfig) -> None:
         self.config = config
-        self._pose = PoseEstimator(config.pose_model_path, config.conf_pose, config.device)
+        self._pose = PoseEstimator(
+            config.pose_model_path, config.conf_pose, config.device,
+            kp_confidence=config.kp_confidence,
+        )
         self._classifier = PostureClassifier(
             fps=config.target_fps,
             thresholds=config.thresholds,
@@ -86,6 +93,9 @@ class UnifiedPipeline:
             fall_confirm_frames=round(config.fall_confirm_seconds * config.target_fps),
         )
         self._temporal = TemporalAnalyzer(fps=config.target_fps)
+        self._vertical_reference = vertical_from_roll(config.camera_roll_deg)
+        self._reba_smoother = RebaSmoother(window=5)
+        self._indeterminate_history: deque = deque(maxlen=150)  # ~10s a 15fps, so pro HUD
         self._zones = ZoneManager(config.zones_config)
         self._zone_detector = ZoneDetector(self._zones, config.approach_buffer_px)
         self._decision = DecisionEngine()
@@ -144,8 +154,10 @@ class UnifiedPipeline:
 
         events: list[PersonEvent] = []
         for pose in poses:
-            angles = extract_angles(pose)
+            angles = extract_angles(pose, self._vertical_reference)
             reba = compute_reba(angles)
+            self._indeterminate_history.append(reba.indeterminate)
+            reba.final_score = self._reba_smoother.smooth(pose.person_id, reba)
 
             feet = [pt for pt in [pose.kp("left_ankle"), pose.kp("right_ankle")] if pt]
             zone_results = self._zone_detector.check(pose.person_id, feet)
@@ -153,6 +165,12 @@ class UnifiedPipeline:
             # APPROACHING results still reach the decision engine, which maps
             # them to their own (lower) severity.
             in_zone = any(z.status == ZoneStatus.INSIDE for z in zone_results)
+            # Gate de zona (spec RCC): so restringe avaliacao ergonomica quando
+            # a camera TEM zona cadastrada — sem nenhuma zona, comportamento
+            # inalterado (avalia todo mundo), pra nao regredir cameras que
+            # nunca tiveram zona de risco configurada.
+            zona_configurada = len(self._zones.get_all()) > 0
+            ergonomic_eval_enabled = (not zona_configurada) or in_zone
 
             # Temporal metrics use the previous frame's confirmed state (one
             # frame of lag) so the fall-risk score can feed this frame's rules.
@@ -166,6 +184,7 @@ class UnifiedPipeline:
             posture_state = self._classifier.update(
                 pose.person_id, angles, reba, pose.bbox, in_zone,
                 fall_risk=metrics.fall_risk_score,
+                ergonomic_eval_enabled=ergonomic_eval_enabled,
             )
 
             epi_labels = epi_assoc.get(pose.person_id, [])
@@ -202,6 +221,15 @@ class UnifiedPipeline:
             self._frame_publisher(annotated)
 
         return annotated, events
+
+    @property
+    def indeterminate_rate(self) -> float:
+        """Fracao de frames indeterminados na janela recente (HUD de campo:
+        subir kp_confidence aumenta isto, e sem esse numero parece que o
+        sistema quebrou em vez de estar sendo mais conservador)."""
+        if not self._indeterminate_history:
+            return 0.0
+        return sum(self._indeterminate_history) / len(self._indeterminate_history)
 
     def run_video(self, source: int | str, display: bool = True) -> None:
         cap = open_capture(source)

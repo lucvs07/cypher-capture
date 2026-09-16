@@ -93,9 +93,10 @@ class PostureClassifier:
         bbox: tuple,
         in_critical_zone: bool = False,
         fall_risk: float = 0.0,
+        ergonomic_eval_enabled: bool = True,
     ) -> PostureState:
         raw_cat, raw_reason = self._evaluate_rules(
-            angles, reba, bbox, in_critical_zone, fall_risk
+            angles, reba, bbox, in_critical_zone, fall_risk, ergonomic_eval_enabled
         )
         state = self._apply_hysteresis(person_id, raw_cat, raw_reason)
 
@@ -136,6 +137,7 @@ class PostureClassifier:
         bbox: tuple,
         in_critical_zone: bool,
         fall_risk: float,
+        ergonomic_eval_enabled: bool = True,
     ) -> tuple[PostureCategory, str]:
         # Priority order: IMMEDIATE_RISK > CRITICAL_ZONE > ERGONOMICALLY_INADEQUATE
 
@@ -151,6 +153,13 @@ class PostureClassifier:
 
         if in_critical_zone:
             return PostureCategory.CRITICAL_ZONE, "critical_zone_entry"
+
+        # Gate de zona (spec RCC): alerta ergonomico so vale dentro de uma
+        # zona configurada, quando a camera tem alguma zona cadastrada. Queda
+        # e zona critica (acima) NUNCA sao gateados — sao checagens de
+        # seguranca independentes de zona de trabalho estar configurada.
+        if not ergonomic_eval_enabled:
+            return PostureCategory.NORMAL, ""
 
         if self._detect_spine_load(angles):
             return PostureCategory.ERGONOMICALLY_INADEQUATE, "trunk_flexion_spine_load"

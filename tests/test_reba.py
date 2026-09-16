@@ -337,3 +337,35 @@ class TestDeclaredLimitations:
                                      left_shoulder_elevation=170.0,
                                      left_elbow_flexion=40.0))
         assert s.final_score == _TABLE_C[s.score_a - 1][s.score_b - 1]
+
+
+class TestIndeterminado:
+    """Keypoint ausente marca o frame como indeterminado em vez de virar
+    silenciosamente 'risco minimo' (score 1) - achado da auditoria de vies
+    sistematico de oclusao."""
+
+    def _angulos_completos(self, **overrides):
+        base = dict(trunk_flexion=10, neck_flexion=170,
+                    left_knee_flexion=170, right_knee_flexion=170,
+                    left_shoulder_elevation=10, right_shoulder_elevation=10,
+                    left_elbow_flexion=80, right_elbow_flexion=80)
+        base.update(overrides)
+        return make_angles(**base)
+
+    def test_todos_angulos_presentes_nao_e_indeterminado(self):
+        score = compute_reba(self._angulos_completos())
+        assert score.indeterminate is False
+
+    def test_trunk_flexion_ausente_e_indeterminado(self):
+        score = compute_reba(self._angulos_completos(trunk_flexion=None))
+        assert score.indeterminate is True
+
+    def test_ambos_joelhos_ausentes_e_indeterminado(self):
+        score = compute_reba(self._angulos_completos(
+            left_knee_flexion=None, right_knee_flexion=None))
+        assert score.indeterminate is True
+
+    def test_um_joelho_presente_nao_e_indeterminado(self):
+        """Bilateral: um lado visivel basta (mesma regra que _legs_score ja usa)."""
+        score = compute_reba(self._angulos_completos(right_knee_flexion=None))
+        assert score.indeterminate is False
