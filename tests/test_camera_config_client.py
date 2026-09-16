@@ -102,6 +102,37 @@ def test_rotacao_e_angulo_default_zero_quando_ausentes(tmp_path):
     assert config.angulo_camera_graus == 0
 
 
+def test_overrides_de_queda_vem_da_api(tmp_path):
+    corpo = {
+        **CORPO,
+        "fallenAspectRatio": 2.5,
+        "fallenVerticalExtent": 0.2,
+        "trunkRotationMax": 0.6,
+        "fallRequireCorroboration": True,
+    }
+    transporte = TransporteFake(corpo=corpo)
+
+    config = cliente(tmp_path, transporte).fetch("CAM-01", AMBIENTE)
+
+    assert config.fallen_aspect_ratio == 2.5
+    assert config.fallen_vertical_extent == 0.2
+    assert config.trunk_rotation_max == 0.6
+    assert config.fall_require_corroboration is True
+
+
+def test_overrides_de_queda_default_none_quando_ausentes(tmp_path):
+    """None (nao 0) — diferente de rotacao/angulo, aqui nao existe numero
+    magico seguro pra 'sem override', tem que ser None mesmo."""
+    transporte = TransporteFake(corpo=CORPO)
+
+    config = cliente(tmp_path, transporte).fetch("CAM-01", AMBIENTE)
+
+    assert config.fallen_aspect_ratio is None
+    assert config.fallen_vertical_extent is None
+    assert config.trunk_rotation_max is None
+    assert config.fall_require_corroboration is None
+
+
 def test_credencial_ausente_aborta_em_vez_de_montar_url_quebrada(tmp_path):
     with pytest.raises(MissingCredentialError):
         cliente(tmp_path, TransporteFake()).fetch("CAM-01", {})

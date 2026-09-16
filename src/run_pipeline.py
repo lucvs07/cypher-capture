@@ -218,6 +218,28 @@ def main() -> None:
     if camera_roll_deg:
         print(f"[config] camera_roll_deg={camera_roll_deg}° aplicado so no calculo de flexao de tronco")
 
+    # Overrides por camera dos limiares de queda (achado SPI 2026-09-16,
+    # camera com pitch quase vertical) — so do cadastro, sem flag de CLI:
+    # ausencia no cadastro (None) preserva o default do YAML do host.
+    if config_remota is not None:
+        if config_remota.fallen_aspect_ratio is not None:
+            config.thresholds.fallen_aspect_ratio = config_remota.fallen_aspect_ratio
+        if config_remota.fallen_vertical_extent is not None:
+            config.thresholds.fallen_vertical_extent = config_remota.fallen_vertical_extent
+        if config_remota.trunk_rotation_max is not None:
+            config.thresholds.trunk_rotation_max = config_remota.trunk_rotation_max
+        if config_remota.fall_require_corroboration is not None:
+            config.fall_require_corroboration = config_remota.fall_require_corroboration
+        if any(v is not None for v in (
+            config_remota.fallen_aspect_ratio, config_remota.fallen_vertical_extent,
+            config_remota.trunk_rotation_max, config_remota.fall_require_corroboration,
+        )):
+            print(f"[config] overrides de queda do cadastro: "
+                  f"fallen_aspect_ratio={config.thresholds.fallen_aspect_ratio} "
+                  f"fallen_vertical_extent={config.thresholds.fallen_vertical_extent} "
+                  f"trunk_rotation_max={config.thresholds.trunk_rotation_max} "
+                  f"fall_require_corroboration={config.fall_require_corroboration}")
+
     if not fonte:
         p_erro = ("Informe --source, ou --camera-id com --api-url apontando "
                   "para uma camera cadastrada.")

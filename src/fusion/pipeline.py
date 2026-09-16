@@ -38,6 +38,7 @@ class PipelineConfig:
     conf_pose: float = 0.5
     kp_confidence: float = 0.5
     camera_roll_deg: float = 0.0
+    fall_require_corroboration: bool = False
     zones_config: str = "config/zones/zones.json"
     target_fps: float = 15.0
     max_latency_ms: float = 200.0
@@ -91,6 +92,7 @@ class UnifiedPipeline:
             exit_frames=config.exit_frames,
             enter_frames_risk=config.enter_frames_risk,
             fall_confirm_frames=round(config.fall_confirm_seconds * config.target_fps),
+            fall_require_corroboration=config.fall_require_corroboration,
         )
         self._temporal = TemporalAnalyzer(fps=config.target_fps)
         self._vertical_reference = vertical_from_roll(config.camera_roll_deg)

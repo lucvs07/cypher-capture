@@ -445,3 +445,39 @@ class TestBboxTruncadoNaBorda:
         estado = clf.update(1, deitado, reba(1), TALL_BBOX, bbox_truncated=True)
         assert estado.category == PostureCategory.IMMEDIATE_RISK
         assert estado.reason == "person_fallen"
+
+
+class TestCorroboracaoDeQueda:
+    """Achado de campo (SPI 2026-09-16, camera FRESA2): pitch quase vertical
+    faz o cue de bbox sozinho disparar em pessoa debrucada na mesa. Flag
+    op-in por camera exige 2 cues elegiveis concordando em vez de 1."""
+
+    def test_default_preserva_or_de_sempre(self):
+        """fall_require_corroboration=False (default): 1 cue basta, igual hoje."""
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+
+    def test_corroboracao_ligada_bbox_sozinho_nao_dispara(self):
+        clf = PostureClassifier(enter_frames_risk=1, fall_require_corroboration=True)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.NORMAL
+
+    def test_corroboracao_ligada_bbox_mais_trunk_flexion_dispara(self):
+        clf = PostureClassifier(enter_frames_risk=1, fall_require_corroboration=True)
+        deitado = JointAngles(person_id=1, trunk_flexion=80.0)
+        clf.update(1, deitado, reba(1), WIDE_BBOX)
+        estado = clf.update(1, deitado, reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+        assert estado.reason == "person_fallen"
+
+    def test_corroboracao_ligada_e_bbox_truncado_exige_os_2_cues_de_keypoint(self):
+        """Bbox truncado tira 1 cue elegivel — com corroboracao ligada, os 2
+        restantes (trunk_flexion e vertical_extent) precisam concordar."""
+        clf = PostureClassifier(enter_frames_risk=1, fall_require_corroboration=True)
+        so_trunk = JointAngles(person_id=1, trunk_flexion=80.0)  # vertical_extent None
+        clf.update(1, so_trunk, reba(1), WIDE_BBOX, bbox_truncated=True)
+        estado = clf.update(1, so_trunk, reba(1), WIDE_BBOX, bbox_truncated=True)
+        assert estado.category == PostureCategory.NORMAL  # so 1 de 2 elegiveis
