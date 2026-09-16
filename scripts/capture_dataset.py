@@ -112,7 +112,19 @@ def capturar_camera(camera_id: str, api_url: str, interval_s: float,
             continue
 
         try:
-            ret, frame = cap.read()
+            # ResilientCapture.read() para fonte ao vivo eh nao-bloqueante:
+            # devolve (False, None) se a thread de leitura em background
+            # ainda nao decodificou o 1o frame. O handshake RTSP leva
+            # tipicamente 1-3s, entao um read() unico logo apos open()
+            # falha quase sempre — poll curto ate um frame chegar ou estourar
+            # o timeout.
+            ret, frame = False, None
+            limite_leitura = time.monotonic() + 4.0
+            while time.monotonic() < limite_leitura:
+                ret, frame = cap.read()
+                if ret:
+                    break
+                time.sleep(0.1)
         finally:
             cap.release()
 
