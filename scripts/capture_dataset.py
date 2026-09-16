@@ -102,11 +102,13 @@ def capturar_camera(camera_id: str, api_url: str, interval_s: float,
     t_fim = time.monotonic() + duration_s
 
     while time.monotonic() < t_fim:
+        inicio_ciclo = time.monotonic()
+
         try:
             cap = ResilientCapture(config.fonte).open()
         except RuntimeError as erro:
             print(f"[{camera_id}] falha ao conectar nesta captura: {erro}")
-            time.sleep(interval_s)
+            time.sleep(max(0.0, interval_s - (time.monotonic() - inicio_ciclo)))
             continue
 
         try:
@@ -116,7 +118,7 @@ def capturar_camera(camera_id: str, api_url: str, interval_s: float,
 
         if not ret:
             print(f"[{camera_id}] frame indisponivel nesta captura, tentando de novo em {interval_s:.0f}s")
-            time.sleep(interval_s)
+            time.sleep(max(0.0, interval_s - (time.monotonic() - inicio_ciclo)))
             continue
 
         ts = time.strftime("%Y%m%d_%H%M%S")
@@ -128,7 +130,12 @@ def capturar_camera(camera_id: str, api_url: str, interval_s: float,
         enviados += 1
         print(f"[{camera_id}] {enviados:4d} enviado: {resposta['secure_url']}")
 
-        time.sleep(interval_s)
+        # Desconta do intervalo pedido o tempo ja gasto conectando, lendo e
+        # subindo pro Cloudinary — senao a cadencia real fica mais espacada
+        # que --interval-seconds (o usuario pediu "diversas fotos", nao
+        # queremos entregar menos por causa do overhead da conexao nova a
+        # cada ciclo).
+        time.sleep(max(0.0, interval_s - (time.monotonic() - inicio_ciclo)))
 
     print(f"[{camera_id}] encerrado — {enviados} frame(s) enviados")
 
