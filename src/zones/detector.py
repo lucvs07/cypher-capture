@@ -24,6 +24,7 @@ class ZoneResult:
     distance_px: float
     severity: int
     required_ppe: list[str] = field(default_factory=list)
+    delimita_avaliacao: bool = False
 
 
 APPROACH_BUFFER_PX = 80
@@ -73,6 +74,7 @@ class ZoneDetector:
                     distance_px=0.0,
                     severity=zone.severity,
                     required_ppe=zone.required_ppe,
+                    delimita_avaliacao=zone.delimita_avaliacao,
                 ))
                 continue
 
@@ -86,9 +88,32 @@ class ZoneDetector:
                     distance_px=min_dist,
                     severity=zone.severity,
                     required_ppe=zone.required_ppe,
+                    delimita_avaliacao=zone.delimita_avaliacao,
                 ))
 
         return results
+
+    @staticmethod
+    def avaliacao_habilitada(zone_results: list[ZoneResult], all_zones: list[Zone]) -> bool:
+        """Decide se EPI/pose devem ser avaliados para esta pessoa neste frame.
+
+        Achado de campo (SPI 2026-09-16): zona so influenciava severidade de
+        alerta, nunca o que era avaliado. Zonas com ``delimita_avaliacao=True``
+        sao a area de trabalho declarada: se a camera tem ao menos uma, so
+        quem esta dentro de alguma delas e avaliado. Zonas de perigo simples
+        (delimita_avaliacao=False, o default) nunca restringem nada — so
+        elevam severidade quando alguem entra nelas, como sempre fizeram. Sem
+        NENHUMA zona delimitadora cadastrada, avalia todo mundo: comportamento
+        anterior preservado pra nao regredir camera sem zona de trabalho
+        configurada.
+        """
+        se_ha_delimitadora = any(z.delimita_avaliacao for z in all_zones)
+        if not se_ha_delimitadora:
+            return True
+        return any(
+            zr.status == ZoneStatus.INSIDE and zr.delimita_avaliacao
+            for zr in zone_results
+        )
 
     @staticmethod
     def _min_distance(points: list[tuple], polygon: np.ndarray) -> float:

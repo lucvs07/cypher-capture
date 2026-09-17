@@ -170,12 +170,15 @@ class UnifiedPipeline:
             # APPROACHING results still reach the decision engine, which maps
             # them to their own (lower) severity.
             in_zone = any(z.status == ZoneStatus.INSIDE for z in zone_results)
-            # Gate de zona (spec RCC): so restringe avaliacao ergonomica quando
-            # a camera TEM zona cadastrada — sem nenhuma zona, comportamento
-            # inalterado (avalia todo mundo), pra nao regredir cameras que
-            # nunca tiveram zona de risco configurada.
-            zona_configurada = len(self._zones.get_all()) > 0
-            ergonomic_eval_enabled = (not zona_configurada) or in_zone
+            # Gate de avaliacao (achado SPI 2026-09-16): zonas com
+            # delimita_avaliacao=True sao a area de trabalho declarada —
+            # existindo ao menos uma na camera, so quem esta dentro dela tem
+            # EPI/pose avaliados. Zona de perigo simples (delimita_avaliacao
+            # falso, o default) nunca restringe nada, so eleva severidade
+            # quando alguem entra. Sem nenhuma zona delimitadora, avalia todo
+            # mundo — comportamento anterior preservado.
+            avaliacao_habilitada = ZoneDetector.avaliacao_habilitada(
+                zone_results, self._zones.get_all())
 
             # Temporal metrics use the previous frame's confirmed state (one
             # frame of lag) so the fall-risk score can feed this frame's rules.
@@ -195,11 +198,14 @@ class UnifiedPipeline:
             posture_state = self._classifier.update(
                 pose.person_id, angles, reba, pose.bbox, in_zone,
                 fall_risk=metrics.fall_risk_score,
-                ergonomic_eval_enabled=ergonomic_eval_enabled,
+                ergonomic_eval_enabled=avaliacao_habilitada,
                 bbox_truncated=bbox_truncated,
             )
 
-            epi_labels = epi_assoc.get(pose.person_id, [])
+            # Mesmo gate desliga EPI: fora da area de trabalho declarada,
+            # nao ha avaliacao de EPI a se fazer, so pose ergonomica (achado
+            # SPI 2026-09-16 — antes disso EPI rodava pra todo mundo sempre).
+            epi_labels = epi_assoc.get(pose.person_id, []) if avaliacao_habilitada else []
             event = self._decision.fuse(
                 pose.person_id, posture_state, reba, zone_results, epi_labels
             )
