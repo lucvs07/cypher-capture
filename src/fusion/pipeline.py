@@ -21,6 +21,8 @@ from ..pose.angles import extract_angles, vertical_from_roll
 from ..pose.reba import compute_reba
 from ..pose.reba_smoother import RebaSmoother
 from ..pose.classifier import ClassifierThresholds, PostureCategory, PostureClassifier
+from ..pose.epi_absence import EpiAbsenceTracker
+from ..pose.epi_catalog import EpiTipo
 from ..pose.temporal import TemporalAnalyzer
 from ..zones.manager import ZoneManager
 from ..zones.detector import ZoneDetector, ZoneStatus
@@ -48,6 +50,15 @@ class PipelineConfig:
     enter_frames_risk: int = 2
     exit_frames: int = 15
     fall_confirm_seconds: float = 1.0
+    # Ausencia de EPI (achado de campo 2026-09-20): o detector so tem classes
+    # de presenca, "ausente" e sempre uma inferencia sobre N frames seguidos
+    # sem deteccao (ver pose/epi_absence.py) — 1 frame perdido por oclusao ou
+    # blur nao pode virar alerta. epi_checklist_global sao nomes canonicos
+    # (EpiTipo, ex. "HELMET") usados quando a pessoa nao esta numa zona com
+    # required_ppe proprio (zona tem prioridade sobre o checklist da empresa).
+    epi_confirm_seconds: float = 2.0
+    epi_min_track_frames: int = 15
+    epi_checklist_global: list[str] = field(default_factory=list)
     thresholds: ClassifierThresholds = field(default_factory=ClassifierThresholds)
 
     @classmethod
@@ -101,6 +112,15 @@ class UnifiedPipeline:
         self._zones = ZoneManager(config.zones_config)
         self._zone_detector = ZoneDetector(self._zones, config.approach_buffer_px)
         self._decision = DecisionEngine()
+        self._epi_absence = EpiAbsenceTracker(
+            confirm_frames=round(config.epi_confirm_seconds * config.target_fps),
+            min_track_frames=config.epi_min_track_frames,
+        )
+        self._epi_checklist_global = [
+            tipo for tipo in (
+                EpiTipo.from_wire_name(nome) for nome in config.epi_checklist_global
+            ) if tipo is not None
+        ]
         self._epi_model: Optional[YOLO] = None
         self._frame_idx = 0
         self._epi_stride = 1           # EPI runs every N frames
@@ -206,8 +226,32 @@ class UnifiedPipeline:
             # nao ha avaliacao de EPI a se fazer, so pose ergonomica (achado
             # SPI 2026-09-16 — antes disso EPI rodava pra todo mundo sempre).
             epi_labels = epi_assoc.get(pose.person_id, []) if avaliacao_habilitada else []
+
+            # Escopo do EPI exigido (achado 2026-09-20): a zona onde a pessoa
+            # esta, quando exige EPI proprio, tem prioridade sobre o
+            # checklist global da empresa — o checklist so vale quando a
+            # zona nao resolve nenhum item (sem zona, ou zona sem
+            # required_ppe reconhecido).
+            epi_missing_confirmed: list[str] = []
+            if avaliacao_habilitada:
+                worst_zone = DecisionEngine.worst_zone(zone_results)
+                required = []
+                if worst_zone is not None and worst_zone.required_ppe:
+                    required = [
+                        t for t in (EpiTipo.from_wire_name(n) for n in worst_zone.required_ppe)
+                        if t is not None
+                    ]
+                if not required:
+                    required = self._epi_checklist_global
+                if required:
+                    epi_missing_confirmed = self._epi_absence.update(
+                        pose.person_id, epi_labels, required, bbox_truncated,
+                        self._temporal.frames_tracked(pose.person_id),
+                    )
+
             event = self._decision.fuse(
-                pose.person_id, posture_state, reba, zone_results, epi_labels
+                pose.person_id, posture_state, reba, zone_results, epi_labels,
+                epi_missing_confirmed=epi_missing_confirmed,
             )
             event.previous_posture = prev_category.value
             events.append(event)

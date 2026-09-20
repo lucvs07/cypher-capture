@@ -18,6 +18,12 @@ POSTURE_TO_TYPE: dict[str, str] = {
     "critical_zone": "ZONE_VIOLATION",
 }
 
+# EPI não entra em POSTURE_TO_TYPE: é um eixo independente da postura
+# (achado 2026-09-20) — a mesma pessoa pode ter um incidente de postura E um
+# de EPI abertos ao mesmo tempo, então IncidentTracker rastreia os dois com
+# lógica de transição separada (_handle_epi), não uma entrada neste mapa.
+TIPO_EPI_VIOLATION = "EPI_VIOLATION"
+
 
 class ClosedReason:
     """Por que o episódio foi encerrado.
@@ -30,6 +36,10 @@ class ClosedReason:
     ESCALATED = "ESCALATED"
     TRACK_LOST = "TRACK_LOST"
     PIPELINE_STOPPED = "PIPELINE_STOPPED"
+    # Violacao persistiu alem de renotify_after_seconds — fechado e reaberto
+    # de proposito como incidente novo, pra reincidir no kiosk (achado
+    # 2026-09-20: sem isto, uma violacao continua gerava so 1 alerta).
+    RENOTIFIED = "RENOTIFIED"
 
 
 def build_incident_key(camera_id: str, run_id: str, track_id: int,

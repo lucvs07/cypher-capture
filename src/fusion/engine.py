@@ -47,7 +47,17 @@ def _containment(person: tuple, epi: tuple) -> float:
 class DecisionEngine:
     """Fuses posture, REBA, zone, and EPI information into a per-person event."""
 
-    EPI_VIOLATION_LABELS = {"no_gloves", "no_goggle", "no_helmet", "no_boots", "none"}
+    EPI_VIOLATION_LABELS = {"no_gloves", "no_goggle", "no_helmet", "no_boots", "no_vest", "no_mask", "none"}
+
+    @staticmethod
+    def worst_zone(zone_results: list[ZoneResult]) -> Optional[ZoneResult]:
+        """Zona mais severa para esta pessoa neste frame (inside > approaching,
+        maior severidade desempata). Extraido de fuse() pra ser reusado pelo
+        pipeline na resolucao de escopo de EPI (zona ∪ checklist global,
+        achado 2026-09-20) sem duplicar o criterio de desempate."""
+        if not zone_results:
+            return None
+        return max(zone_results, key=lambda z: (z.status == ZoneStatus.INSIDE, z.severity))
 
     def fuse(
         self,
@@ -56,6 +66,7 @@ class DecisionEngine:
         reba: REBAScore,
         zone_results: list[ZoneResult],
         epi_labels: list[str],
+        epi_missing_confirmed: list[str] | None = None,
     ) -> PersonEvent:
         event = PersonEvent(person_id=person_id)
         event.posture = posture_state.category.value
@@ -63,8 +74,14 @@ class DecisionEngine:
         event.reba_score = reba.final_score
         event.action_level = reba.action_level
 
+        # Duas fontes de violacao: labels explicitas do detector (nunca
+        # geradas hoje — o modelo so tem classes de presenca, ver
+        # epi_catalog.py) e a inferencia de ausencia por debounce
+        # (epi_missing_confirmed, achado 2026-09-20). Deduplicado, ordem
+        # preservada.
         violations = [lbl for lbl in epi_labels if lbl in self.EPI_VIOLATION_LABELS]
-        event.epi_violations = violations
+        violations.extend(epi_missing_confirmed or [])
+        event.epi_violations = list(dict.fromkeys(violations))
         # PPE actually detected on the person (presence). "Person" is the EPI
         # model's own person class, not equipment, so it is excluded. Deduped,
         # order preserved.
@@ -74,12 +91,8 @@ class DecisionEngine:
         ))
 
         # Zone: report worst (inside > approaching, higher severity wins)
-        worst = None
-        if zone_results:
-            worst = max(
-                zone_results,
-                key=lambda z: (z.status == ZoneStatus.INSIDE, z.severity),
-            )
+        worst = self.worst_zone(zone_results)
+        if worst is not None:
             event.zone_status = worst.status.value
             event.zone_name = worst.zone_name
         else:

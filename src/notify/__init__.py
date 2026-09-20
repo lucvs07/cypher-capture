@@ -27,6 +27,12 @@ class NotifyConfig:
     merge_window_seconds: float = 15.0
     evict_after_frames: int = 45
     min_track_frames: int = 15
+    # Achado de campo 2026-09-20: uma violacao que persiste (ex.: pessoa
+    # trabalha o turno inteiro sem capacete) so gerava 1 incidente, porque o
+    # tracker so abre um novo quando a categoria MUDA. Passado este tempo com
+    # o mesmo tipo continuamente aberto, fecha e reabre como incidente novo —
+    # reincide no kiosk/dashboard em vez de ficar em silencio. None desliga.
+    renotify_after_seconds: Optional[float] = 120.0
     queue_size: int = 256
     spill_path: str = "outputs/incidents.jsonl"
     stream_port: int = 8090

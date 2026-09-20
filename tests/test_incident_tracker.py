@@ -337,3 +337,116 @@ def test_flush_fecha_o_que_restou_aberto():
     assert len(coletor.fechados) == 1
     assert coletor.fechados[0].closed_reason == ClosedReason.PIPELINE_STOPPED
     assert coletor.fechados[0].duration_seconds == pytest.approx(4.0)
+
+
+def evento_epi(person_id: int, epi_violations: list[str], severidade: int = 2) -> PersonEvent:
+    """Postura normal, fora de zona — o unico motivo de alerta e o EPI."""
+    return PersonEvent(
+        person_id=person_id,
+        posture="normal",
+        previous_posture="normal",
+        severity=severidade,
+        epi_violations=epi_violations,
+        zone_status="outside",
+    )
+
+
+class TestEpiComoEixoIndependenteDaPostura:
+    """Achado de campo 2026-09-20: ate entao EPI so entrava como dado anexo
+    de um incidente ja aberto por outro motivo — postura normal + EPI
+    ausente nunca abria incidente nenhum."""
+
+    def test_epi_ausente_com_postura_normal_abre_incidente_proprio(self):
+        tracker, coletor = montar()
+        aquecer(tracker, 1, 20, T0)
+
+        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+
+        assert len(coletor.abertos) == 1
+        assert coletor.abertos[0].type == "EPI_VIOLATION"
+        assert coletor.abertos[0].epi_missing == ["no_helmet"]
+
+    def test_epi_deixa_de_faltar_fecha_o_incidente(self):
+        tracker, coletor = montar()
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+
+        tracker.process([evento_epi(1, [])], T0 + timedelta(seconds=1))
+
+        assert len(coletor.fechados) == 1
+        assert coletor.fechados[0].closed_reason == ClosedReason.STATE_EXIT
+
+    def test_epi_e_postura_abrem_incidentes_simultaneos_e_independentes(self):
+        tracker, coletor = montar()
+        aquecer(tracker, 1, 20, T0)
+
+        evento_combinado = PersonEvent(
+            person_id=1, posture="immediate_risk", previous_posture="normal",
+            severity=4, reason="fallen_sustained", epi_violations=["no_helmet"],
+        )
+        tracker.process([evento_combinado], T0)
+
+        tipos_abertos = {r.type for r in coletor.abertos}
+        assert tipos_abertos == {"FALL_RISK", "EPI_VIOLATION"}
+
+    def test_epi_continuo_sem_renotify_configurado_atualiza_pico_sem_reabrir(self):
+        tracker, coletor = montar()  # renotify_after_seconds=None por padrao no teste
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento_epi(1, ["no_helmet"], severidade=2)], T0)
+
+        tracker.process([evento_epi(1, ["no_helmet"], severidade=3)],
+                         T0 + timedelta(minutes=10))
+
+        assert len(coletor.abertos) == 1
+        assert len(coletor.fechados) == 0
+        assert tracker.open_incidents()[(1, "EPI_VIOLATION")].peak_severity == 3
+
+
+class TestRenotificacao:
+    """Achado de campo 2026-09-20: violacao continua so gerava 1 alerta na
+    vida inteira do episodio — fecha e reabre como incidente novo depois de
+    renotify_after_seconds, pra reincidir no kiosk."""
+
+    def test_violacao_persistente_alem_do_limite_fecha_e_reabre(self):
+        tracker, coletor = montar(renotify_after_seconds=60.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+
+        tracker.process([evento_epi(1, ["no_helmet"])], T0 + timedelta(seconds=61))
+
+        assert len(coletor.abertos) == 2
+        assert len(coletor.fechados) == 1
+        assert coletor.fechados[0].closed_reason == ClosedReason.RENOTIFIED
+        assert coletor.abertos[0].incident_key != coletor.abertos[1].incident_key
+
+    def test_violacao_persistente_antes_do_limite_nao_reabre(self):
+        tracker, coletor = montar(renotify_after_seconds=60.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+
+        tracker.process([evento_epi(1, ["no_helmet"])], T0 + timedelta(seconds=30))
+
+        assert len(coletor.abertos) == 1
+        assert len(coletor.fechados) == 0
+
+    def test_renotificacao_funciona_tambem_para_incidente_de_postura(self):
+        tracker, coletor = montar(renotify_after_seconds=60.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "critical_zone", "normal", severidade=3)], T0)
+
+        tracker.process([evento(1, "critical_zone", "critical_zone", severidade=3)],
+                         T0 + timedelta(seconds=61))
+
+        assert len(coletor.abertos) == 2
+        assert coletor.fechados[0].closed_reason == ClosedReason.RENOTIFIED
+
+    def test_renotificacao_desligada_por_padrao_nao_afeta_episodio_longo(self):
+        tracker, coletor = montar()
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "critical_zone", "normal", severidade=3)], T0)
+
+        tracker.process([evento(1, "critical_zone", "critical_zone", severidade=3)],
+                         T0 + timedelta(hours=1))
+
+        assert len(coletor.abertos) == 1
+        assert len(coletor.fechados) == 0
