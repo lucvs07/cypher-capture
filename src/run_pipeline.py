@@ -38,8 +38,8 @@ import numpy as np
 from src.capture import (
     ApiKeyProvisioner, ApiKeyProvisioningError, CameraConfigClient,
     CameraDisabledError, CameraNotRegisteredError, CaptureConfig,
-    MissingCredentialError, MissingGestorCredentialError, ResilientCapture,
-    aplicar_opcoes_ffmpeg,
+    EpiChecklistClient, MissingCredentialError, MissingGestorCredentialError,
+    ResilientCapture, aplicar_opcoes_ffmpeg,
 )
 from src.fusion.pipeline import PipelineConfig, UnifiedPipeline
 from src.notify import (
@@ -239,6 +239,17 @@ def main() -> None:
                   f"fallen_vertical_extent={config.thresholds.fallen_vertical_extent} "
                   f"trunk_rotation_max={config.thresholds.trunk_rotation_max} "
                   f"fall_require_corroboration={config.fall_require_corroboration}")
+
+    # Checklist global de EPI da empresa (achado de campo 2026-09-20): so do
+    # cadastro, sem flag de CLI equivalente — ausencia (None) preserva o
+    # default do YAML do host, mesmo criterio dos overrides de queda acima.
+    if args.api_url:
+        epi_cliente = EpiChecklistClient(args.api_url,
+                                         cache_path=capture_config.epi_checklist_cache_path)
+        epi_checklist_remoto = epi_cliente.fetch(api_key=chave_provisionada)
+        if epi_checklist_remoto is not None:
+            config.epi_checklist_global = epi_checklist_remoto
+            print(f"[config] checklist global de EPI do cadastro: {epi_checklist_remoto}")
 
     if not fonte:
         p_erro = ("Informe --source, ou --camera-id com --api-url apontando "
