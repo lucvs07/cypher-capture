@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Optional
 
@@ -29,6 +30,34 @@ class JointAngles:
     hip_center: Optional[tuple] = None              # mid-hip (x, y) px — stable CoM for fall velocity
 
 
+def vertical_from_roll(roll_deg: float) -> tuple[float, float]:
+    """Vetor "vertical do mundo" em coordenadas de imagem, para uma camera com
+    roll de `roll_deg` graus (rotacao lateral, nao gira o frame inteiro como
+    apply_rotation — so corrige o calculo de angulo). roll=0 reproduz o eixo Y
+    hard-coded que o codigo assumia antes (0, -1).
+
+    Convencao de sinal NAO validada empiricamente ainda — se a correcao sair
+    invertida em campo, use o valor negado (ex.: -12 em vez de 12).
+    """
+    theta = math.radians(roll_deg)
+    return (math.sin(theta), -math.cos(theta))
+
+
+def _angle_from_vertical(vec: tuple[float, float], vertical: tuple[float, float]) -> float:
+    """Menor angulo entre `vec` e `vertical` (ou seu oposto), em graus [0, 90].
+    Generaliza o antigo arctan2(abs(dx), abs(dy)) para uma vertical arbitraria:
+    dobra o resultado sobre 90 do mesmo jeito que abs() fazia para vertical=(0,-1)."""
+    vx, vy = vec
+    ux, uy = vertical
+    norm_v = math.hypot(vx, vy)
+    norm_u = math.hypot(ux, uy)
+    if norm_v < 1e-6 or norm_u < 1e-6:
+        return 0.0
+    cos_a = max(-1.0, min(1.0, (vx * ux + vy * uy) / (norm_v * norm_u)))
+    ang = math.degrees(math.acos(cos_a))
+    return min(ang, 180.0 - ang)
+
+
 def _angle(p1: tuple[float, float], vertex: tuple[float, float], p2: tuple[float, float]) -> float:
     """Interior angle at *vertex* formed by the vectors vertex→p1 and vertex→p2, in degrees [0, 180]."""
     v1 = np.array(p1) - np.array(vertex)
@@ -49,8 +78,16 @@ def _midpoint(
     return ((p1[0] + p2[0]) / 2.0, (p1[1] + p2[1]) / 2.0)
 
 
-def extract_angles(pose: PersonPose) -> JointAngles:
-    """Compute all joint angles from a PersonPose. Returns None for angles with low-confidence keypoints."""
+def extract_angles(
+    pose: PersonPose,
+    vertical_reference: tuple[float, float] = (0.0, -1.0),
+) -> JointAngles:
+    """Compute all joint angles from a PersonPose. Returns None for angles with low-confidence keypoints.
+
+    `vertical_reference` e a direcao de "para cima" no mundo real, em
+    coordenadas de imagem — default (0, -1) assume camera sem roll. Passe
+    `vertical_from_roll(angulo)` para corrigir camera fisicamente inclinada.
+    """
     g = pose.kp
     angles = JointAngles(person_id=pose.person_id)
 
@@ -58,16 +95,12 @@ def extract_angles(pose: PersonPose) -> JointAngles:
     mid_hip = _midpoint(g("left_hip"), g("right_hip"))
 
     # Trunk flexion: angle between the torso vector (mid_hip → mid_shoulder)
-    # and the upward image vertical. 0° = upright, 90° = horizontal torso.
-    # Using the vertical (not the hip interior angle) keeps a seated person
-    # with a straight back at ~0° instead of ~90°. Assumes camera roll ≈ 0.
+    # and the world-vertical reference (image axis by default, or corrected
+    # for camera roll). 0° = upright, 90° = horizontal torso.
     if mid_shoulder and mid_hip:
         dx = mid_shoulder[0] - mid_hip[0]
         dy = mid_shoulder[1] - mid_hip[1]  # image y grows downward
-        # abs(dy) keeps the result in [0°, 90°] even when keypoint noise
-        # accidentally places mid_shoulder below mid_hip (-dy would go negative
-        # and arctan2 would return > 90°, scoring as extreme flexion).
-        angles.trunk_flexion = float(np.degrees(np.arctan2(abs(dx), abs(dy))))
+        angles.trunk_flexion = _angle_from_vertical((dx, dy), vertical_reference)
 
     # Neck: angle at mid-shoulder between nose and mid-hip (deviation from spine axis)
     nose = g("nose")

@@ -20,6 +20,7 @@ from .config_client import (
     MissingCredentialError,
     expand_placeholders,
 )
+from .epi_checklist_client import EpiChecklistClient
 from .resilient import ResilientCapture
 
 
@@ -34,6 +35,7 @@ class CaptureConfig:
     backoff_max_seconds: float = 10.0
     cache_path: str = "outputs/camera-config-cache.json"
     zones_cache_path: str = "outputs/zones-config-cache.json"
+    epi_checklist_cache_path: str = "outputs/epi-checklist-cache.json"
 
     @classmethod
     def from_yaml(cls, path: str) -> "CaptureConfig":

@@ -29,11 +29,12 @@ class PersonPose:
     confidences: np.ndarray         # (17,) float in [0, 1]
     bbox: tuple[float, float, float, float]  # x1, y1, x2, y2
     timestamp: float = field(default_factory=time.time)
+    kp_confidence_threshold: float = 0.5
 
     def kp(self, name: str) -> Optional[tuple[float, float]]:
-        """Return (x, y) for the keypoint if confidence >= 0.5, else None."""
+        """Return (x, y) for the keypoint if confidence >= threshold, else None."""
         idx = KP[name]
-        if self.confidences[idx] >= 0.5:
+        if self.confidences[idx] >= self.kp_confidence_threshold:
             return (float(self.keypoints[idx, 0]), float(self.keypoints[idx, 1]))
         return None
 
@@ -54,10 +55,14 @@ class PoseEstimator:
         model_path: str = "yolo11s-pose.pt",
         conf: float = 0.5,
         device: str = "cpu",
+        kp_confidence: float = 0.5,
+        tracker: str = "bytetrack.yaml",
     ) -> None:
         self.model = YOLO(model_path)
         self.conf = conf
         self.device = device
+        self.kp_confidence = kp_confidence
+        self.tracker = tracker
 
     def estimate(self, frame: np.ndarray, track: bool = True) -> list[PersonPose]:
         """Run pose estimation on a single frame. Returns one PersonPose per person."""
@@ -68,7 +73,7 @@ class PoseEstimator:
                 device=self.device,
                 persist=True,
                 verbose=False,
-                tracker="bytetrack.yaml",
+                tracker=self.tracker,
             )
         else:
             results = self.model(frame, conf=self.conf, device=self.device, verbose=False)
@@ -92,5 +97,6 @@ class PoseEstimator:
                     keypoints=kps_data[i, :, :2],
                     confidences=kps_data[i, :, 2],
                     bbox=tuple(boxes[i].tolist()),
+                    kp_confidence_threshold=self.kp_confidence,
                 ))
         return poses

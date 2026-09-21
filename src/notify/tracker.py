@@ -14,11 +14,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable
+from typing import Callable, Optional
 
 from ..fusion.engine import PersonEvent
 from .incident import (
     POSTURE_TO_TYPE,
+    TIPO_EPI_VIOLATION,
     ClosedReason,
     IncidentReport,
     build_incident_key,
@@ -40,6 +41,12 @@ class TrackerConfig:
     evict_after_frames: int = 45
     min_track_frames: int = 15
     fps: float = 15.0
+    # None preserva o comportamento anterior (episodio fica aberto pra
+    # sempre enquanto a violacao persiste) — testes de unidade do tracker
+    # nao passam este parametro de proposito, pra nao terem que gerenciar
+    # `now` avancando alem da janela em cada cenario que nao e sobre isto.
+    # O pipeline real (NotifyConfig) liga com um default concreto.
+    renotify_after_seconds: Optional[float] = None
 
 
 class IncidentTracker:
@@ -58,6 +65,11 @@ class IncidentTracker:
         self._last_frame_seen: dict[int, int] = {}
         self._frame_idx = 0
         self._frame_atual = None    # frame anotado do frame em processamento
+        # EPI e postura sao eixos independentes: a mesma pessoa pode estar,
+        # no mesmo frame, com ZONE_VIOLATION (postura) E EPI_VIOLATION (epi)
+        # abertos ao mesmo tempo — por isso o estado anterior de EPI nao cabe
+        # em previous_posture/POSTURE_TO_TYPE, precisa do proprio dicionario.
+        self._epi_ativo: dict[int, bool] = {}
 
     # ------------------------------------------------------------------
     # Laço principal
@@ -97,16 +109,58 @@ class IncidentTracker:
         anterior = POSTURE_TO_TYPE.get(event.previous_posture)
 
         if atual == anterior:
-            if atual is not None:
+            if atual is not None and not self._talvez_renotificar(event, atual, now):
                 self._update_peak(event, atual)
+        else:
+            if anterior is not None:
+                motivo = ClosedReason.ESCALATED if atual else ClosedReason.STATE_EXIT
+                self._close((event.person_id, anterior), now, motivo)
+
+            if atual is not None:
+                self._open_or_merge(event, atual, now)
+
+        self._handle_epi(event, now)
+
+    def _handle_epi(self, event: PersonEvent, now: datetime) -> None:
+        """Eixo independente da postura (achado de campo 2026-09-20): EPI
+        ausente confirmado abre/fecha seu proprio incidente, mesmo quando a
+        postura da pessoa e normal — ate entao EPI so entrava como dado
+        anexo (epiMissing) de um incidente ja aberto por outro motivo."""
+        tem_violacao_agora = bool(event.epi_violations)
+        tinha_antes = self._epi_ativo.get(event.person_id, False)
+        self._epi_ativo[event.person_id] = tem_violacao_agora
+
+        if tem_violacao_agora and tinha_antes:
+            if not self._talvez_renotificar(event, TIPO_EPI_VIOLATION, now):
+                self._update_peak(event, TIPO_EPI_VIOLATION)
             return
+        if not tem_violacao_agora and tinha_antes:
+            self._close((event.person_id, TIPO_EPI_VIOLATION), now, ClosedReason.STATE_EXIT)
+            return
+        if tem_violacao_agora and not tinha_antes:
+            self._open_or_merge(event, TIPO_EPI_VIOLATION, now)
 
-        if anterior is not None:
-            motivo = ClosedReason.ESCALATED if atual else ClosedReason.STATE_EXIT
-            self._close((event.person_id, anterior), now, motivo)
-
-        if atual is not None:
-            self._open_or_merge(event, atual, now)
+    def _talvez_renotificar(self, event: PersonEvent, tipo: str, now: datetime) -> bool:
+        """Fecha e reabre como incidente novo quando a mesma violacao
+        persiste alem de renotify_after_seconds (achado de campo 2026-09-20:
+        sem isto, uma violacao continua so gerava 1 alerta na vida inteira do
+        episodio). Devolve True quando reabriu — o chamador nao deve tambem
+        chamar _update_peak, porque o episodio que existia acabou de fechar."""
+        limite = self.config.renotify_after_seconds
+        if limite is None:
+            return False
+        relatorio = self._open.get((event.person_id, tipo))
+        if relatorio is None:
+            return False
+        if (now - relatorio.detected_at).total_seconds() < limite:
+            return False
+        self._close((event.person_id, tipo), now, ClosedReason.RENOTIFIED)
+        # A janela de merge reabriria o mesmo episodio (mesmo motivo de
+        # existir) — pular a chave de merge deste fechamento evita isso.
+        self._last_close.pop((event.person_id, tipo), None)
+        self._merged.pop((event.person_id, tipo), None)
+        self._open_or_merge(event, tipo, now)
+        return True
 
     def _update_peak(self, event: PersonEvent, tipo: str) -> None:
         relatorio = self._open.get((event.person_id, tipo))
@@ -146,7 +200,12 @@ class IncidentTracker:
             track_id=event.person_id,
             type=tipo,
             severity=event.severity,
-            reason=event.reason,
+            reason=event.reason or (
+                # Postura normal (reason vazio) e o proprio motivo do
+                # incidente ser EPI: usa os itens ausentes como reason em vez
+                # de deixar o campo em branco no historico/dashboard.
+                ", ".join(event.epi_violations) if tipo == TIPO_EPI_VIOLATION else event.reason
+            ),
             posture_category=event.posture,
             zone_status=event.zone_status,
             zone_name=event.zone_name,

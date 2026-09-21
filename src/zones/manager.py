@@ -15,6 +15,12 @@ class Zone:
     polygon: list[tuple[float, float]]   # ordered (x, y) vertices in pixel coords
     severity: int = 3                    # 1=low … 4=critical
     required_ppe: list[str] = field(default_factory=list)
+    # Achado SPI 2026-09-16: ate entao zona so influenciava severidade de
+    # alerta, nunca o que era avaliado (EPI/pose sempre rodavam pra todo
+    # mundo). Quando True, esta zona e a area de trabalho: EPI e pose so
+    # sao avaliados pra quem esta dentro dela. Default False preserva o
+    # comportamento anterior.
+    delimita_avaliacao: bool = False
 
     @staticmethod
     def new(
@@ -23,6 +29,7 @@ class Zone:
         polygon: list[tuple[float, float]],
         severity: int = 3,
         required_ppe: list[str] | None = None,
+        delimita_avaliacao: bool = False,
     ) -> "Zone":
         return Zone(
             zone_id=str(uuid.uuid4())[:8],
@@ -31,6 +38,7 @@ class Zone:
             polygon=polygon,
             severity=severity,
             required_ppe=required_ppe or [],
+            delimita_avaliacao=delimita_avaliacao,
         )
 
 

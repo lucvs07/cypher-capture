@@ -80,6 +80,7 @@ class REBAScore:
     final_score: int = 1
     action_level: int = 1
     action_description: str = "Negligible risk — no action required"
+    indeterminate: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +174,18 @@ def compute_reba(angles: JointAngles) -> REBAScore:
         angles.left_elbow_flexion, angles.right_elbow_flexion
     )
     score.wrist_score = 1  # 2D vision cannot reliably estimate wrist deviation
+
+    # Indeterminado: um componente usado nas tabelas A/B nao pode ser lido do
+    # frame (oclusao/baixa confianca). Sinaliza o chamador em vez de deixar o
+    # score-1 de fallback virar "risco minimo" silencioso (achado de auditoria:
+    # antes disto, oclusao parcial sub-notificava risco sem nenhum sinal).
+    score.indeterminate = (
+        angles.trunk_flexion is None
+        or angles.neck_flexion is None
+        or (angles.left_knee_flexion is None and angles.right_knee_flexion is None)
+        or (angles.left_shoulder_elevation is None and angles.right_shoulder_elevation is None)
+        or (angles.left_elbow_flexion is None and angles.right_elbow_flexion is None)
+    )
 
     # Table A lookup
     t_idx = min(score.trunk_score - 1, 4)

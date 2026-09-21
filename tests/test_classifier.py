@@ -381,3 +381,103 @@ class TestFallConfirmation:
         s = clf.update(pid, unstable, reba(1), TALL_BBOX)
         assert s.category == PostureCategory.IMMEDIATE_RISK
         assert s.reason == "balance_loss_risk"
+
+
+class TestGateDeZona:
+    """Alerta ergonomico (REBA/postura sustentada) so vale dentro da zona
+    configurada; queda e zona critica continuam ativas sempre (achado da
+    auditoria: zona so alimentava um flag, nao restringia nada)."""
+
+    def test_reba_alto_fora_da_zona_com_gate_desativado_nao_dispara(self):
+        clf = PostureClassifier(enter_frames=1)
+        estado = clf.update(1, neutral_angles(1), reba(9), TALL_BBOX,
+                             ergonomic_eval_enabled=False)
+        assert estado.category == PostureCategory.NORMAL
+
+    def test_reba_alto_com_gate_ativado_dispara(self):
+        clf = PostureClassifier(enter_frames=1)
+        clf.update(1, neutral_angles(1), reba(9), TALL_BBOX, ergonomic_eval_enabled=True)
+        estado = clf.update(1, neutral_angles(1), reba(9), TALL_BBOX,
+                             ergonomic_eval_enabled=True)
+        assert estado.category == PostureCategory.ERGONOMICALLY_INADEQUATE
+
+    def test_queda_dispara_mesmo_com_gate_desativado(self):
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX, ergonomic_eval_enabled=False)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX,
+                             ergonomic_eval_enabled=False)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+
+    def test_gate_default_preserva_comportamento_atual(self):
+        """Quem nao passa o kwarg novo continua avaliando ergonomia sempre
+        (compatibilidade com todo o resto da suite que ja chama update sem ele)."""
+        clf = PostureClassifier(enter_frames=1)
+        clf.update(1, neutral_angles(1), reba(9), TALL_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(9), TALL_BBOX)
+        assert estado.category == PostureCategory.ERGONOMICALLY_INADEQUATE
+
+
+class TestBboxTruncadoNaBorda:
+    """Achado de campo (SPI 2026-09-16): pessoa colada na borda do frame gera
+    bbox largo/baixo so pelo corte, nao pela postura — o cue de aspect ratio
+    sozinho nao pode confiar nisso quando o bbox esta truncado."""
+
+    def test_bbox_truncado_nao_dispara_fallen_por_aspecto(self):
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX, bbox_truncated=True)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX, bbox_truncated=True)
+        assert estado.category == PostureCategory.NORMAL
+
+    def test_bbox_nao_truncado_continua_disparando_fallen_por_aspecto(self):
+        """Regressao: comportamento antigo preservado quando bbox_truncated=False (default)."""
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+        assert estado.reason == "person_fallen"
+
+    def test_bbox_truncado_mas_trunk_flexion_horizontal_ainda_dispara(self):
+        """Queda real perto da borda ainda e pega pelos outros cues (keypoints),
+        so o cue de aspect-ratio-puro e desativado."""
+        clf = PostureClassifier(enter_frames_risk=1)
+        deitado = JointAngles(person_id=1, trunk_flexion=80.0)
+        clf.update(1, deitado, reba(1), TALL_BBOX, bbox_truncated=True)
+        estado = clf.update(1, deitado, reba(1), TALL_BBOX, bbox_truncated=True)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+        assert estado.reason == "person_fallen"
+
+
+class TestCorroboracaoDeQueda:
+    """Achado de campo (SPI 2026-09-16, camera FRESA2): pitch quase vertical
+    faz o cue de bbox sozinho disparar em pessoa debrucada na mesa. Flag
+    op-in por camera exige 2 cues elegiveis concordando em vez de 1."""
+
+    def test_default_preserva_or_de_sempre(self):
+        """fall_require_corroboration=False (default): 1 cue basta, igual hoje."""
+        clf = PostureClassifier(enter_frames_risk=1)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+
+    def test_corroboracao_ligada_bbox_sozinho_nao_dispara(self):
+        clf = PostureClassifier(enter_frames_risk=1, fall_require_corroboration=True)
+        clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        estado = clf.update(1, neutral_angles(1), reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.NORMAL
+
+    def test_corroboracao_ligada_bbox_mais_trunk_flexion_dispara(self):
+        clf = PostureClassifier(enter_frames_risk=1, fall_require_corroboration=True)
+        deitado = JointAngles(person_id=1, trunk_flexion=80.0)
+        clf.update(1, deitado, reba(1), WIDE_BBOX)
+        estado = clf.update(1, deitado, reba(1), WIDE_BBOX)
+        assert estado.category == PostureCategory.IMMEDIATE_RISK
+        assert estado.reason == "person_fallen"
+
+    def test_corroboracao_ligada_e_bbox_truncado_exige_os_2_cues_de_keypoint(self):
+        """Bbox truncado tira 1 cue elegivel — com corroboracao ligada, os 2
+        restantes (trunk_flexion e vertical_extent) precisam concordar."""
+        clf = PostureClassifier(enter_frames_risk=1, fall_require_corroboration=True)
+        so_trunk = JointAngles(person_id=1, trunk_flexion=80.0)  # vertical_extent None
+        clf.update(1, so_trunk, reba(1), WIDE_BBOX, bbox_truncated=True)
+        estado = clf.update(1, so_trunk, reba(1), WIDE_BBOX, bbox_truncated=True)
+        assert estado.category == PostureCategory.NORMAL  # so 1 de 2 elegiveis

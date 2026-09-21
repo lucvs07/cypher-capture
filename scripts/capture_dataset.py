@@ -10,6 +10,16 @@ algumas cameras baratas limitam quantos clientes RTSP conectam ao mesmo
 tempo no mesmo canal; se a captura falhar com o pipeline de deteccao
 rodando na mesma camera, tente rodar so um dos dois primeiro).
 
+Achado de campo (SPI 2026-09-16): ja tentamos abrir/fechar a conexao RTSP
+a cada frame pra coexistir com o run_pipeline.py na mesma camera — piorou.
+Essas NVRs penalizam reconexao rapida: numa execucao de 5min a cadencia
+real degradou de ~10s pra ~70s por ciclo (conexoes anteriores nao fechavam
+de verdade a tempo e se acumulavam), e trocar de biblioteca pra evitar
+esse vazamento so trocou o sintoma — o proprio open() passou a travar por
+~30s. Mantenha a conexao persistente (como esta agora) e resolva a
+disputa de outro jeito: rode este script com o(s) run_pipeline.py da(s)
+mesma(s) camera(s) parado(s).
+
 Usage:
     python scripts/capture_dataset.py --api-url http://localhost:8080/api/v1
     python scripts/capture_dataset.py --cameras CAM-FRESA1,CAM-SICK \

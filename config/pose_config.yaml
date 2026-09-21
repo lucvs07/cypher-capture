@@ -8,10 +8,16 @@ pipeline:
   device: cpu                        # cpu | cuda | mps
   conf_epi: 0.5
   conf_pose: 0.5
+  kp_confidence: 0.5                 # confianca minima por keypoint p/ ser usado nos angulos (ajustavel em campo,
+                                      # antes hard-coded em PersonPose.kp()); subir aumenta frames indeterminados
+  camera_roll_deg: 0.0                # roll manual da camera p/ corrigir trunk_flexion; sobrescrito por --camera-roll-deg
+                                      # ou pelo cadastro (campo anguloCameraGraus) quando --camera-id/--api-url sao usados
   zones_config: config/zones/zones.json
   target_fps: 15.0
   max_latency_ms: 200.0              # if exceeded, EPI stride increases (recovers below 70% of budget)
   epi_stride_max: 4                  # EPI model will not skip more than this many frames
+  pose_tracker_config: config/bytetrack_tuned.yaml  # achado 2026-09-20: default do Ultralytics troca de ID
+                                      # a cada oclusao/blur breve (track_buffer=30, ~1.2s a 25 FPS)
 
 classifier:
   enter_frames: 5                    # consecutive matching frames to confirm a new state

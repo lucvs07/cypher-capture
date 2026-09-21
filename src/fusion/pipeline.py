@@ -7,6 +7,7 @@ Latency management: if combined inference exceeds max_latency_ms, EPI model skip
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import dataclass, field, fields
 from typing import Optional
 
@@ -16,9 +17,12 @@ import yaml
 from ultralytics import YOLO
 
 from ..pose.estimator import PersonPose, PoseEstimator
-from ..pose.angles import extract_angles
+from ..pose.angles import extract_angles, vertical_from_roll
 from ..pose.reba import compute_reba
+from ..pose.reba_smoother import RebaSmoother
 from ..pose.classifier import ClassifierThresholds, PostureCategory, PostureClassifier
+from ..pose.epi_absence import EpiAbsenceTracker
+from ..pose.epi_catalog import EpiTipo
 from ..pose.temporal import TemporalAnalyzer
 from ..zones.manager import ZoneManager
 from ..zones.detector import ZoneDetector, ZoneStatus
@@ -34,6 +38,14 @@ class PipelineConfig:
     device: str = "cpu"
     conf_epi: float = 0.5
     conf_pose: float = 0.5
+    kp_confidence: float = 0.5
+    # Achado de campo 2026-09-20: o default do Ultralytics (track_buffer=30,
+    # ~1.2s a 25 FPS) descarta o track e troca de ID a cada oclusao/blur
+    # breve, quebrando tanto a confirmacao de ausencia de EPI (exige frames
+    # consecutivos sob o mesmo ID) quanto o REBA suavizado.
+    pose_tracker_config: str = "config/bytetrack_tuned.yaml"
+    camera_roll_deg: float = 0.0
+    fall_require_corroboration: bool = False
     zones_config: str = "config/zones/zones.json"
     target_fps: float = 15.0
     max_latency_ms: float = 200.0
@@ -43,6 +55,15 @@ class PipelineConfig:
     enter_frames_risk: int = 2
     exit_frames: int = 15
     fall_confirm_seconds: float = 1.0
+    # Ausencia de EPI (achado de campo 2026-09-20): o detector so tem classes
+    # de presenca, "ausente" e sempre uma inferencia sobre N frames seguidos
+    # sem deteccao (ver pose/epi_absence.py) — 1 frame perdido por oclusao ou
+    # blur nao pode virar alerta. epi_checklist_global sao nomes canonicos
+    # (EpiTipo, ex. "HELMET") usados quando a pessoa nao esta numa zona com
+    # required_ppe proprio (zona tem prioridade sobre o checklist da empresa).
+    epi_confirm_seconds: float = 2.0
+    epi_min_track_frames: int = 15
+    epi_checklist_global: list[str] = field(default_factory=list)
     thresholds: ClassifierThresholds = field(default_factory=ClassifierThresholds)
 
     @classmethod
@@ -76,7 +97,11 @@ class UnifiedPipeline:
 
     def __init__(self, config: PipelineConfig) -> None:
         self.config = config
-        self._pose = PoseEstimator(config.pose_model_path, config.conf_pose, config.device)
+        self._pose = PoseEstimator(
+            config.pose_model_path, config.conf_pose, config.device,
+            kp_confidence=config.kp_confidence,
+            tracker=config.pose_tracker_config,
+        )
         self._classifier = PostureClassifier(
             fps=config.target_fps,
             thresholds=config.thresholds,
@@ -84,11 +109,24 @@ class UnifiedPipeline:
             exit_frames=config.exit_frames,
             enter_frames_risk=config.enter_frames_risk,
             fall_confirm_frames=round(config.fall_confirm_seconds * config.target_fps),
+            fall_require_corroboration=config.fall_require_corroboration,
         )
         self._temporal = TemporalAnalyzer(fps=config.target_fps)
+        self._vertical_reference = vertical_from_roll(config.camera_roll_deg)
+        self._reba_smoother = RebaSmoother(window=5)
+        self._indeterminate_history: deque = deque(maxlen=150)  # ~10s a 15fps, so pro HUD
         self._zones = ZoneManager(config.zones_config)
         self._zone_detector = ZoneDetector(self._zones, config.approach_buffer_px)
         self._decision = DecisionEngine()
+        self._epi_absence = EpiAbsenceTracker(
+            confirm_frames=round(config.epi_confirm_seconds * config.target_fps),
+            min_track_frames=config.epi_min_track_frames,
+        )
+        self._epi_checklist_global = [
+            tipo for tipo in (
+                EpiTipo.from_wire_name(nome) for nome in config.epi_checklist_global
+            ) if tipo is not None
+        ]
         self._epi_model: Optional[YOLO] = None
         self._frame_idx = 0
         self._epi_stride = 1           # EPI runs every N frames
@@ -142,17 +180,37 @@ class UnifiedPipeline:
             person_bboxes, self._last_epi_bboxes, self._last_epi_labels
         )
 
+        frame_height, frame_width = frame.shape[:2]
+        edge_margin = 5.0  # px — bbox colado na borda = pessoa cortada, nao deitada
+
         events: list[PersonEvent] = []
         for pose in poses:
-            angles = extract_angles(pose)
+            angles = extract_angles(pose, self._vertical_reference)
             reba = compute_reba(angles)
+            self._indeterminate_history.append(reba.indeterminate)
+            reba.final_score = self._reba_smoother.smooth(pose.person_id, reba)
 
             feet = [pt for pt in [pose.kp("left_ankle"), pose.kp("right_ankle")] if pt]
             zone_results = self._zone_detector.check(pose.person_id, feet)
             # Only actual zone *entry* drives the CRITICAL_ZONE posture state;
             # APPROACHING results still reach the decision engine, which maps
-            # them to their own (lower) severity.
-            in_zone = any(z.status == ZoneStatus.INSIDE for z in zone_results)
+            # them to their own (lower) severity. So "restricted" abre
+            # CRITICAL_ZONE/ZONE_VIOLATION (achado de campo 2026-09-20 —
+            # antes uma zona "attention"/area de trabalho disparava o mesmo
+            # alerta so por alguem entrar nela, sem checar o tipo).
+            in_zone = any(
+                z.status == ZoneStatus.INSIDE and z.zone_type == "restricted"
+                for z in zone_results
+            )
+            # Gate de avaliacao (achado SPI 2026-09-16): zonas com
+            # delimita_avaliacao=True sao a area de trabalho declarada —
+            # existindo ao menos uma na camera, so quem esta dentro dela tem
+            # EPI/pose avaliados. Zona de perigo simples (delimita_avaliacao
+            # falso, o default) nunca restringe nada, so eleva severidade
+            # quando alguem entra. Sem nenhuma zona delimitadora, avalia todo
+            # mundo — comportamento anterior preservado.
+            avaliacao_habilitada = ZoneDetector.avaliacao_habilitada(
+                zone_results, self._zones.get_all())
 
             # Temporal metrics use the previous frame's confirmed state (one
             # frame of lag) so the fall-risk score can feed this frame's rules.
@@ -163,14 +221,48 @@ class UnifiedPipeline:
                 is_bad_posture=prev_state.category != PostureCategory.NORMAL,
             )
 
+            x1, y1, x2, y2 = pose.bbox
+            bbox_truncated = (
+                x1 <= edge_margin or y1 <= edge_margin
+                or x2 >= frame_width - edge_margin or y2 >= frame_height - edge_margin
+            )
+
             posture_state = self._classifier.update(
                 pose.person_id, angles, reba, pose.bbox, in_zone,
                 fall_risk=metrics.fall_risk_score,
+                ergonomic_eval_enabled=avaliacao_habilitada,
+                bbox_truncated=bbox_truncated,
             )
 
-            epi_labels = epi_assoc.get(pose.person_id, [])
+            # Mesmo gate desliga EPI: fora da area de trabalho declarada,
+            # nao ha avaliacao de EPI a se fazer, so pose ergonomica (achado
+            # SPI 2026-09-16 — antes disso EPI rodava pra todo mundo sempre).
+            epi_labels = epi_assoc.get(pose.person_id, []) if avaliacao_habilitada else []
+
+            # Escopo do EPI exigido (achado 2026-09-20): a zona onde a pessoa
+            # esta, quando exige EPI proprio, tem prioridade sobre o
+            # checklist global da empresa — o checklist so vale quando a
+            # zona nao resolve nenhum item (sem zona, ou zona sem
+            # required_ppe reconhecido).
+            epi_missing_confirmed: list[str] = []
+            if avaliacao_habilitada:
+                worst_zone = DecisionEngine.worst_zone(zone_results)
+                required = []
+                if worst_zone is not None and worst_zone.required_ppe:
+                    required = [
+                        t for t in (EpiTipo.from_wire_name(n) for n in worst_zone.required_ppe)
+                        if t is not None
+                    ]
+                if not required:
+                    required = self._epi_checklist_global
+                if required:
+                    epi_missing_confirmed = self._epi_absence.update(
+                        pose.person_id, epi_labels, required, bbox_truncated,
+                    )
+
             event = self._decision.fuse(
-                pose.person_id, posture_state, reba, zone_results, epi_labels
+                pose.person_id, posture_state, reba, zone_results, epi_labels,
+                epi_missing_confirmed=epi_missing_confirmed,
             )
             event.previous_posture = prev_category.value
             events.append(event)
@@ -202,6 +294,15 @@ class UnifiedPipeline:
             self._frame_publisher(annotated)
 
         return annotated, events
+
+    @property
+    def indeterminate_rate(self) -> float:
+        """Fracao de frames indeterminados na janela recente (HUD de campo:
+        subir kp_confidence aumenta isto, e sem esse numero parece que o
+        sistema quebrou em vez de estar sendo mais conservador)."""
+        if not self._indeterminate_history:
+            return 0.0
+        return sum(self._indeterminate_history) / len(self._indeterminate_history)
 
     def run_video(self, source: int | str, display: bool = True) -> None:
         cap = open_capture(source)

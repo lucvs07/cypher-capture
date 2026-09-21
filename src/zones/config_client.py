@@ -135,6 +135,7 @@ class ZoneConfigClient:
                 polygon=polygon_px,
                 severity=item["severity"],
                 required_ppe=item.get("requiredPpe") or [],
+                delimita_avaliacao=bool(item.get("delimitaAvaliacao")),
             ))
         return zonas
 

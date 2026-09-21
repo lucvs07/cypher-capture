@@ -97,6 +97,16 @@ class CameraConfig:
     ativa: bool
     origem: str                      # "api" | "cache"
     idade_segundos: float = 0.0
+    rotacao: int = 0
+    angulo_camera_graus: int = 0
+    # Overrides por camera dos limiares de deteccao de queda (achado SPI
+    # 2026-09-16: camera com pitch quase vertical). None = usa o default do
+    # YAML do pipeline — nunca um numero magico, porque nao existe "sem
+    # override" seguro pra esses limiares.
+    fallen_aspect_ratio: Optional[float] = None
+    fallen_vertical_extent: Optional[float] = None
+    trunk_rotation_max: Optional[float] = None
+    fall_require_corroboration: Optional[bool] = None
 
     @property
     def do_cache(self) -> bool:
@@ -170,6 +180,21 @@ class CameraConfigClient:
             fonte=expand_placeholders(bruto.get("fonte"), env),
             stream_port=bruto.get("streamPort"),
             ativa=bool(bruto.get("ativa", True)),
+            rotacao=int(bruto.get("rotacao") or 0),
+            angulo_camera_graus=int(bruto.get("anguloCameraGraus") or 0),
+            fallen_aspect_ratio=(
+                float(bruto["fallenAspectRatio"])
+                if bruto.get("fallenAspectRatio") is not None else None
+            ),
+            fallen_vertical_extent=(
+                float(bruto["fallenVerticalExtent"])
+                if bruto.get("fallenVerticalExtent") is not None else None
+            ),
+            trunk_rotation_max=(
+                float(bruto["trunkRotationMax"])
+                if bruto.get("trunkRotationMax") is not None else None
+            ),
+            fall_require_corroboration=bruto.get("fallRequireCorroboration"),
             origem=origem,
             idade_segundos=idade,
         )
