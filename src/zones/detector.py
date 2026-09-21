@@ -25,6 +25,13 @@ class ZoneResult:
     severity: int
     required_ppe: list[str] = field(default_factory=list)
     delimita_avaliacao: bool = False
+    # Achado de campo 2026-09-20: zone_type nunca sobrevivia ate aqui, entao
+    # uma zona "attention" (area de trabalho) disparava CRITICAL_ZONE/
+    # ZONE_VIOLATION igual a uma "restricted" (zona de risco) so por a
+    # pessoa entrar nela. So "restricted" deve escalar severidade/abrir
+    # incidente de zona; "attention" continua elevando avaliacao via
+    # delimita_avaliacao, mas nunca vira alerta so por presenca.
+    zone_type: str = "restricted"
 
 
 APPROACH_BUFFER_PX = 80
@@ -75,6 +82,7 @@ class ZoneDetector:
                     severity=zone.severity,
                     required_ppe=zone.required_ppe,
                     delimita_avaliacao=zone.delimita_avaliacao,
+                    zone_type=zone.zone_type,
                 ))
                 continue
 
@@ -89,6 +97,7 @@ class ZoneDetector:
                     severity=zone.severity,
                     required_ppe=zone.required_ppe,
                     delimita_avaliacao=zone.delimita_avaliacao,
+                    zone_type=zone.zone_type,
                 ))
 
         return results

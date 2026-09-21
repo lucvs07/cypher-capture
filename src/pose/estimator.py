@@ -56,11 +56,13 @@ class PoseEstimator:
         conf: float = 0.5,
         device: str = "cpu",
         kp_confidence: float = 0.5,
+        tracker: str = "bytetrack.yaml",
     ) -> None:
         self.model = YOLO(model_path)
         self.conf = conf
         self.device = device
         self.kp_confidence = kp_confidence
+        self.tracker = tracker
 
     def estimate(self, frame: np.ndarray, track: bool = True) -> list[PersonPose]:
         """Run pose estimation on a single frame. Returns one PersonPose per person."""
@@ -71,7 +73,7 @@ class PoseEstimator:
                 device=self.device,
                 persist=True,
                 verbose=False,
-                tracker="bytetrack.yaml",
+                tracker=self.tracker,
             )
         else:
             results = self.model(frame, conf=self.conf, device=self.device, verbose=False)

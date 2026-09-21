@@ -39,6 +39,11 @@ class PipelineConfig:
     conf_epi: float = 0.5
     conf_pose: float = 0.5
     kp_confidence: float = 0.5
+    # Achado de campo 2026-09-20: o default do Ultralytics (track_buffer=30,
+    # ~1.2s a 25 FPS) descarta o track e troca de ID a cada oclusao/blur
+    # breve, quebrando tanto a confirmacao de ausencia de EPI (exige frames
+    # consecutivos sob o mesmo ID) quanto o REBA suavizado.
+    pose_tracker_config: str = "config/bytetrack_tuned.yaml"
     camera_roll_deg: float = 0.0
     fall_require_corroboration: bool = False
     zones_config: str = "config/zones/zones.json"
@@ -95,6 +100,7 @@ class UnifiedPipeline:
         self._pose = PoseEstimator(
             config.pose_model_path, config.conf_pose, config.device,
             kp_confidence=config.kp_confidence,
+            tracker=config.pose_tracker_config,
         )
         self._classifier = PostureClassifier(
             fps=config.target_fps,
@@ -188,8 +194,14 @@ class UnifiedPipeline:
             zone_results = self._zone_detector.check(pose.person_id, feet)
             # Only actual zone *entry* drives the CRITICAL_ZONE posture state;
             # APPROACHING results still reach the decision engine, which maps
-            # them to their own (lower) severity.
-            in_zone = any(z.status == ZoneStatus.INSIDE for z in zone_results)
+            # them to their own (lower) severity. So "restricted" abre
+            # CRITICAL_ZONE/ZONE_VIOLATION (achado de campo 2026-09-20 —
+            # antes uma zona "attention"/area de trabalho disparava o mesmo
+            # alerta so por alguem entrar nela, sem checar o tipo).
+            in_zone = any(
+                z.status == ZoneStatus.INSIDE and z.zone_type == "restricted"
+                for z in zone_results
+            )
             # Gate de avaliacao (achado SPI 2026-09-16): zonas com
             # delimita_avaliacao=True sao a area de trabalho declarada —
             # existindo ao menos uma na camera, so quem esta dentro dela tem
@@ -246,7 +258,6 @@ class UnifiedPipeline:
                 if required:
                     epi_missing_confirmed = self._epi_absence.update(
                         pose.person_id, epi_labels, required, bbox_truncated,
-                        self._temporal.frames_tracked(pose.person_id),
                     )
 
             event = self._decision.fuse(

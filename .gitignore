@@ -54,6 +54,7 @@ outputs/camera-config-cache.json
 outputs/apikey-cache.json
 outputs/dataset-cache-*.json
 outputs/zones-config-cache.json
+outputs/epi-checklist-cache.json
 outputs/orchestrator-logs/
 
 # IDE

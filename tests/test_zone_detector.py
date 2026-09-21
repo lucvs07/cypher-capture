@@ -8,12 +8,12 @@ Funcao pura, sem YOLO nem captura: so Zone/ZoneResult em memoria.
 from __future__ import annotations
 
 from src.zones.detector import ZoneDetector, ZoneResult, ZoneStatus
-from src.zones.manager import Zone
+from src.zones.manager import Zone, ZoneManager
 
 
-def zona(delimita_avaliacao: bool = False, zone_id: str = "z1") -> Zone:
+def zona(delimita_avaliacao: bool = False, zone_id: str = "z1", zone_type: str = "restricted") -> Zone:
     return Zone(
-        zone_id=zone_id, name="Zona de teste", zone_type="restricted",
+        zone_id=zone_id, name="Zona de teste", zone_type=zone_type,
         polygon=[(0, 0), (10, 0), (10, 10)], delimita_avaliacao=delimita_avaliacao,
     )
 
@@ -71,3 +71,28 @@ class TestComZonaDelimitadora:
                  zona(delimita_avaliacao=True, zone_id="trabalho")]
         resultados = [resultado(ZoneStatus.INSIDE, delimita_avaliacao=False, zone_id="perigo")]
         assert ZoneDetector.avaliacao_habilitada(resultados, zonas) is False
+
+
+class TestZoneTypePropagaParaOResultado:
+    """Achado de campo 2026-09-20: zone_type nao sobrevivia ate ZoneResult,
+    entao uma zona 'attention' (area de trabalho) disparava alerta de zona
+    critica igual a uma 'restricted' (zona de risco) so por conter a
+    pessoa — o tipo precisa chegar ate quem decide severidade."""
+
+    def test_check_propaga_zone_type_attention_para_dentro(self):
+        manager = ZoneManager(zones=[zona(zone_id="z1", zone_type="attention")])
+        detector = ZoneDetector(manager)
+
+        resultados = detector.check(person_id=1, feet_points=[(5, 5)])
+
+        assert len(resultados) == 1
+        assert resultados[0].zone_type == "attention"
+
+    def test_check_propaga_zone_type_restricted_para_dentro(self):
+        manager = ZoneManager(zones=[zona(zone_id="z1", zone_type="restricted")])
+        detector = ZoneDetector(manager)
+
+        resultados = detector.check(person_id=1, feet_points=[(5, 5)])
+
+        assert len(resultados) == 1
+        assert resultados[0].zone_type == "restricted"

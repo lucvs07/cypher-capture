@@ -106,7 +106,10 @@ class DecisionEngine:
             sev = max(sev, 3)
         elif posture_state.category == PostureCategory.ERGONOMICALLY_INADEQUATE:
             sev = max(sev, 2)
-        if event.zone_status == "inside":
+        # So zona "restricted" eleva severidade por presenca (achado de campo
+        # 2026-09-20 — "attention"/area de trabalho nao e zona de risco, so
+        # existe pra restringir o que e avaliado via delimita_avaliacao).
+        if event.zone_status == "inside" and worst is not None and worst.zone_type == "restricted":
             sev = max(sev, 3)
         elif event.zone_status == "approaching":
             sev = max(sev, 1)
