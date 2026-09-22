@@ -1,0 +1,3113 @@
+{
+ "video": "data/validation/test_bus.mp4",
+ "required_ppe": [
+  "HELMET",
+  "GLOVE",
+  "BOOTS",
+  "VEST"
+ ],
+ "epi_weights": "models/exp-m4-1709-v4.pt",
+ "frames": [
+  {
+   "frame": 1,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 2,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 3,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 4,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 5,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 6,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 7,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 8,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 9,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 10,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 11,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 12,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 13,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 14,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 15,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 16,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 17,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 18,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 19,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 20,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 21,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 22,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 23,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 24,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 25,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 26,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 27,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 28,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 29,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 30,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 31,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 32,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 33,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 34,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 35,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 36,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 37,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 38,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 39,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 40,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 41,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 42,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 43,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 44,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 45,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 46,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 47,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 48,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 49,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 50,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 51,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 52,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 53,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 54,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 55,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 56,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 57,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 58,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 59,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 60,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 61,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 62,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 63,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 64,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 65,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 66,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 67,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 68,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 69,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 70,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 71,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 72,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 73,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 74,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  },
+  {
+   "frame": 75,
+   "people": [
+    {
+     "track": 1,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 2,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    },
+    {
+     "track": 3,
+     "epi_present": [
+      "BOOTS"
+     ],
+     "epi_missing": [
+      "GLOVE",
+      "HELMET",
+      "VEST"
+     ],
+     "severity": 3,
+     "zone_status": "inside"
+    },
+    {
+     "track": 4,
+     "epi_present": [],
+     "epi_missing": [],
+     "severity": 0,
+     "zone_status": "outside"
+    }
+   ]
+  }
+ ],
+ "incidents": [
+  {
+   "frame": 44,
+   "action": "open",
+   "track": 1,
+   "type": "EPI_VIOLATION",
+   "severity": 3,
+   "peak_severity": 3,
+   "epi_present": [
+    "BOOTS"
+   ],
+   "epi_missing": [
+    "GLOVE",
+    "HELMET",
+    "VEST"
+   ],
+   "closed_reason": null
+  },
+  {
+   "frame": 44,
+   "action": "open",
+   "track": 3,
+   "type": "EPI_VIOLATION",
+   "severity": 3,
+   "peak_severity": 3,
+   "epi_present": [
+    "BOOTS"
+   ],
+   "epi_missing": [
+    "GLOVE",
+    "HELMET",
+    "VEST"
+   ],
+   "closed_reason": null
+  },
+  {
+   "frame": 75,
+   "action": "close",
+   "track": 1,
+   "type": "EPI_VIOLATION",
+   "severity": 3,
+   "peak_severity": 3,
+   "epi_present": [
+    "BOOTS"
+   ],
+   "epi_missing": [
+    "GLOVE",
+    "HELMET",
+    "VEST"
+   ],
+   "closed_reason": "PIPELINE_STOPPED"
+  },
+  {
+   "frame": 75,
+   "action": "close",
+   "track": 3,
+   "type": "EPI_VIOLATION",
+   "severity": 3,
+   "peak_severity": 3,
+   "epi_present": [
+    "BOOTS"
+   ],
+   "epi_missing": [
+    "GLOVE",
+    "HELMET",
+    "VEST"
+   ],
+   "closed_reason": "PIPELINE_STOPPED"
+  }
+ ]
+}
