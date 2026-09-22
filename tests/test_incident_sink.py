@@ -17,7 +17,7 @@ from typing import Optional
 import pytest
 
 from src.notify.incident import ClosedReason, IncidentReport
-from src.notify.sink import HttpIncidentSink, MissingApiKeyError
+from src.notify.sink import HttpIncidentSink, MissingApiKeyError, RejeitadoPeloBackend, _checar_resposta
 
 BRT = timezone(timedelta(hours=-3))
 T0 = datetime(2026, 8, 10, 14, 0, 0, tzinfo=BRT)
@@ -372,3 +372,86 @@ def test_api_key_explicita_vence_api_key_env():
         sink.stop()
 
     assert transporte.posts[0][2] == {"X-Cypher-Key": "cam-key-provisionada"}
+
+
+class TransporteQueRecusa:
+    """Backend que recusa o payload de vez (ex.: 400 por enum desconhecido)."""
+
+    def __init__(self) -> None:
+        self.tentativas = 0
+        self.recusou = threading.Event()
+
+    def post(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
+        self.tentativas += 1
+        self.recusou.set()
+        raise RejeitadoPeloBackend(400, "closedReason invalido")
+
+    patch = post
+
+
+def test_rejeicao_definitiva_nao_retenta_nem_vai_pro_spill(tmp_path):
+    """Achado 2026-09-22: um PATCH com closedReason que o backend nao conhece
+    voltava 400, era retentado ate o limite, ia pro spill e era reenviado —
+    e recusado — em todo boot seguinte, pra sempre."""
+    spill = tmp_path / "incidents.jsonl"
+    rejeitados = tmp_path / "incidents.rejected.jsonl"
+    transporte = TransporteQueRecusa()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte,
+                            spill_path=str(spill), max_attempts=5,
+                            backoff_base=0.01)
+    sink.start()
+    try:
+        sink.open(relatorio("k1"))
+        assert transporte.recusou.wait(timeout=2.0)
+    finally:
+        sink.stop()
+
+    assert transporte.tentativas == 1
+    assert not spill.exists() or not spill.read_text().strip()
+    linhas = [json.loads(l) for l in rejeitados.read_text().splitlines() if l.strip()]
+    assert linhas[0]["incident_key"] == "k1"
+    assert linhas[0]["status"] == 400
+    assert linhas[0]["payload"]["incidentKey"] == "k1"
+
+
+def test_rejeitados_nao_sao_drenados_na_subida(tmp_path):
+    spill = tmp_path / "incidents.jsonl"
+    rejeitados = tmp_path / "incidents.rejected.jsonl"
+    rejeitados.write_text(json.dumps({"kind": "open", "incident_key": "k-velho",
+                                      "status": 400, "payload": {"incidentKey": "k-velho"}}) + "\n")
+    transporte = TransporteFake()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte,
+                            spill_path=str(spill), backoff_base=0.01)
+    sink.start()
+    sink.stop()
+
+    assert transporte.posts == []
+    assert "k-velho" in rejeitados.read_text()
+
+
+class RespostaFake:
+    def __init__(self, status_code: int, text: str = "") -> None:
+        self.status_code = status_code
+        self.text = text
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise ConnectionError(f"HTTP {self.status_code}")
+
+
+@pytest.mark.parametrize("status", [400, 404, 409, 422])
+def test_4xx_definitivo_vira_rejeicao(status):
+    with pytest.raises(RejeitadoPeloBackend) as erro:
+        _checar_resposta(RespostaFake(status, "detalhe"))
+    assert erro.value.status == status
+
+
+@pytest.mark.parametrize("status", [401, 403, 408, 429, 500, 503])
+def test_status_que_se_resolve_com_o_tempo_continua_retentavel(status):
+    with pytest.raises(Exception) as erro:
+        _checar_resposta(RespostaFake(status))
+    assert not isinstance(erro.value, RejeitadoPeloBackend)
+
+
+def test_2xx_passa():
+    _checar_resposta(RespostaFake(201))

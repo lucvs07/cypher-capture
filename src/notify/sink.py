@@ -24,6 +24,31 @@ from .incident import IncidentReport
 log = logging.getLogger(__name__)
 
 
+class RejeitadoPeloBackend(Exception):
+    """O backend recusou o payload de vez (4xx que nao se resolve sozinho).
+
+    Retentar nao adianta: o mesmo payload vai ser recusado de novo nesta
+    execucao, no spill e em todo boot seguinte. 401/403 (chave errada ou
+    rotacionada), 408 e 429 ficam de fora de proposito — esses se resolvem
+    com o tempo ou com correcao de configuracao, e o caminho normal de
+    retry + spill e o certo pra eles.
+    """
+
+    def __init__(self, status: int, corpo: str = "") -> None:
+        self.status = status
+        self.corpo = corpo
+        super().__init__(f"HTTP {status}: {corpo}")
+
+
+_STATUS_RETENTAVEIS = {401, 403, 408, 429}
+
+
+def _checar_resposta(resposta) -> None:
+    if 400 <= resposta.status_code < 500 and resposta.status_code not in _STATUS_RETENTAVEIS:
+        raise RejeitadoPeloBackend(resposta.status_code, resposta.text[:500])
+    resposta.raise_for_status()
+
+
 class Transport(Protocol):
     def post(self, url: str, payload: dict, headers: Optional[dict] = None) -> None: ...
     def patch(self, url: str, payload: dict, headers: Optional[dict] = None) -> None: ...
@@ -39,12 +64,12 @@ class RequestsTransport:
     def post(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
         import requests
         resposta = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
-        resposta.raise_for_status()
+        _checar_resposta(resposta)
 
     def patch(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
         import requests
         resposta = requests.patch(url, json=payload, headers=headers, timeout=self.timeout)
-        resposta.raise_for_status()
+        _checar_resposta(resposta)
 
 
 class Uploader(Protocol):
@@ -139,6 +164,7 @@ class HttpIncidentSink:
     def __init__(self, api_url: str,
                  queue_size: int = 256,
                  spill_path: str = "outputs/incidents.jsonl",
+                 rejected_path: Optional[str] = None,
                  max_attempts: int = 5,
                  backoff_base: float = 0.5,
                  transport: Optional[Transport] = None,
@@ -149,6 +175,11 @@ class HttpIncidentSink:
         self.api_url = api_url.rstrip("/")
         self.queue_size = queue_size
         self.spill_path = Path(spill_path)
+        # Rejeitados ficam ao lado do spill, mas nunca sao drenados de volta
+        # pra fila: estao ali pra alguem inspecionar, nao pra reenviar.
+        self.rejected_path = (Path(rejected_path) if rejected_path is not None
+                              else self.spill_path.with_name(
+                                  self.spill_path.stem + ".rejected.jsonl"))
         self.max_attempts = max_attempts
         self.backoff_base = backoff_base
         self.transport = transport or RequestsTransport()
@@ -284,6 +315,11 @@ class HttpIncidentSink:
                         f"{self.api_url}/incidents/{item.incident_key}", item.payload,
                         headers=self._headers)
                 return
+            except RejeitadoPeloBackend as rejeicao:
+                log.error("Incidente %s (%s) recusado pelo backend, nao sera retentado: %s",
+                          item.incident_key, item.kind, rejeicao)
+                self._gravar_rejeitado(item, rejeicao)
+                return
             except Exception as falha:
                 if item.attempts >= self.max_attempts:
                     log.warning("Incidente %s nao entregue apos %d tentativas: %s",
@@ -323,6 +359,20 @@ class HttpIncidentSink:
                 }) + "\n")
         except OSError as erro:
             log.error("Falha ao gravar spill de %s: %s", item.incident_key, erro)
+
+    def _gravar_rejeitado(self, item: _Item, rejeicao: RejeitadoPeloBackend) -> None:
+        try:
+            self.rejected_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.rejected_path.open("a") as arquivo:
+                arquivo.write(json.dumps({
+                    "kind": item.kind,
+                    "incident_key": item.incident_key,
+                    "status": rejeicao.status,
+                    "resposta": rejeicao.corpo,
+                    "payload": item.payload,
+                }) + "\n")
+        except OSError as erro:
+            log.error("Falha ao gravar rejeitado de %s: %s", item.incident_key, erro)
 
     def _drenar_spill(self) -> None:
         """Reenfileira o que ficou pendente de uma execução anterior."""
