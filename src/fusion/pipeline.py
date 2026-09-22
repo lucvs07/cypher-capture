@@ -27,6 +27,7 @@ from ..pose.temporal import TemporalAnalyzer
 from ..zones.manager import ZoneManager
 from ..zones.detector import ZoneDetector, ZoneStatus
 from ..fusion.engine import DecisionEngine, PersonEvent
+from ..fusion.track_state import EsquecedorDeTracks
 from ..utils.pose_visualization import draw_pose_overlay
 from ..utils.video import open_capture
 
@@ -64,6 +65,11 @@ class PipelineConfig:
     epi_confirm_seconds: float = 2.0
     epi_min_track_frames: int = 15
     epi_checklist_global: list[str] = field(default_factory=list)
+    # Frames sem ver um track ate liberar o estado por pessoa dele (ver
+    # fusion/track_state.py). Precisa ser maior que o track_buffer do
+    # ByteTrack (90 em bytetrack_tuned.yaml), senao esquece quem so ficou
+    # ocluido e ainda vai voltar com o mesmo id.
+    forget_track_after_frames: int = 150
     thresholds: ClassifierThresholds = field(default_factory=ClassifierThresholds)
 
     @classmethod
@@ -127,6 +133,11 @@ class UnifiedPipeline:
                 EpiTipo.from_wire_name(nome) for nome in config.epi_checklist_global
             ) if tipo is not None
         ]
+        self._esquecedor = EsquecedorDeTracks(
+            config.forget_track_after_frames,
+            [self._classifier.forget, self._temporal.forget,
+             self._reba_smoother.forget, self._epi_absence.forget],
+        )
         self._epi_model: Optional[YOLO] = None
         self._frame_idx = 0
         self._epi_stride = 1           # EPI runs every N frames
@@ -266,6 +277,7 @@ class UnifiedPipeline:
             )
             event.previous_posture = prev_category.value
             events.append(event)
+        self._esquecedor.update(self._frame_idx, (p.person_id for p in poses))
         analysis_ms = (time.perf_counter() - t_analysis) * 1000
 
         t_overlay = time.perf_counter()
