@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..pose.classifier import PostureCategory, PostureState
+from ..pose.epi_catalog import EpiTipo
 from ..pose.reba import REBAScore
 from ..zones.detector import ZoneResult, ZoneStatus
 
@@ -120,12 +121,15 @@ class DecisionEngine:
 
         # Taxonomy §4.2: being in/near a zone while missing a PPE the zone
         # requires escalates severity by +1 (capped at 4). A required item is
-        # "missing" when the matching violation label (e.g. helmet → no_helmet)
-        # was associated to this person.
+        # "missing" when its violation label (e.g. HELMET → no_helmet) was
+        # associated to this person. Resolved via the catalog, not f"no_{ppe}":
+        # the front stores canonical names (HELMET, GLOVE → no_gloves), which
+        # string concatenation never matched.
         if worst is not None and worst.required_ppe and event.epi_violations:
             missing = [
                 ppe for ppe in worst.required_ppe
-                if f"no_{ppe}" in event.epi_violations
+                if (tipo := EpiTipo.from_wire_name(ppe)) is not None
+                and tipo.violation_label in event.epi_violations
             ]
             if missing:
                 sev = min(sev + 1, 4)

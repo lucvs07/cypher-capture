@@ -84,3 +84,60 @@ class TestSeveridadePorTipoDeZona:
                              epi_labels=[], epi_missing_confirmed=["no_helmet"])
 
         assert event.severity >= 2
+
+
+def zona_com_epi(required_ppe: list[str]) -> ZoneResult:
+    # "attention" nao eleva severidade por presenca: o que sobra e so o 2 do
+    # EPI ausente, e o +1 da zona fica visivel isolado (2 -> 3).
+    return ZoneResult(person_id=1, zone_id="z1", zone_name="Teste", status=ZoneStatus.INSIDE,
+                       distance_px=0.0, severity=3, required_ppe=required_ppe,
+                       zone_type="attention")
+
+
+class TestEscalonamentoPorEpiExigidoNaZona:
+    """Taxonomia §4.2: estar na zona sem o EPI que ela exige soma +1. O front
+    grava required_ppe com o nome canonico (HELMET, GLOVE, ...), mas o
+    engine comparava f"no_{ppe}" — "no_HELMET" nunca batia com "no_helmet",
+    e o escalonamento nunca disparava para zona cadastrada pela interface."""
+
+    def test_nome_canonico_escala_severidade(self):
+        engine = DecisionEngine()
+
+        event = engine.fuse(1, estado_normal(), Reba(), [zona_com_epi(["HELMET"])],
+                             epi_labels=[], epi_missing_confirmed=["no_helmet"])
+
+        assert event.severity == 3
+
+    def test_nome_canonico_com_violation_label_irregular_escala_severidade(self):
+        # GLOVE -> no_gloves, GOGGLES -> no_goggle: plural/singular nao
+        # derivavel do nome, so o catalogo sabe.
+        engine = DecisionEngine()
+
+        event = engine.fuse(1, estado_normal(), Reba(), [zona_com_epi(["GLOVE", "GOGGLES"])],
+                             epi_labels=[], epi_missing_confirmed=["no_gloves", "no_goggle"])
+
+        assert event.severity == 3
+
+    def test_nome_minusculo_do_zones_json_local_continua_escalando(self):
+        engine = DecisionEngine()
+
+        event = engine.fuse(1, estado_normal(), Reba(), [zona_com_epi(["helmet"])],
+                             epi_labels=[], epi_missing_confirmed=["no_helmet"])
+
+        assert event.severity == 3
+
+    def test_epi_ausente_que_a_zona_nao_exige_nao_escala(self):
+        engine = DecisionEngine()
+
+        event = engine.fuse(1, estado_normal(), Reba(), [zona_com_epi(["VEST"])],
+                             epi_labels=[], epi_missing_confirmed=["no_helmet"])
+
+        assert event.severity == 2
+
+    def test_nome_desconhecido_na_zona_e_ignorado(self):
+        engine = DecisionEngine()
+
+        event = engine.fuse(1, estado_normal(), Reba(), [zona_com_epi(["capacete"])],
+                             epi_labels=[], epi_missing_confirmed=["no_helmet"])
+
+        assert event.severity == 2
