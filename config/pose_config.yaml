@@ -3,9 +3,9 @@
 # unknown keys are ignored.
 
 pipeline:
-  epi_model_path: models/exp.pt
+  epi_model_path: models/exp-m4-1709-v4.pt   # escolhido 21/09: melhor cobertura em cena real e 13% menos GFLOPs que exp.pt
   pose_model_path: yolo11s-pose.pt   # yolo11n-pose.pt for speed, yolo11m-pose.pt for accuracy
-  device: cpu                        # cpu | cuda | mps
+  device: cuda                       # cpu | cuda | mps  (cuda validado como padrao 2026-09-20)
   conf_epi: 0.5
   conf_pose: 0.5
   kp_confidence: 0.5                 # confianca minima por keypoint p/ ser usado nos angulos (ajustavel em campo,

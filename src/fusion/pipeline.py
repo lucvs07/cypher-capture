@@ -33,9 +33,9 @@ from ..utils.video import open_capture
 
 @dataclass
 class PipelineConfig:
-    epi_model_path: str = "models/exp.pt"
+    epi_model_path: str = "models/exp-m4-1709-v4.pt"
     pose_model_path: str = "yolo11s-pose.pt"
-    device: str = "cpu"
+    device: str = "cuda"
     conf_epi: float = 0.5
     conf_pose: float = 0.5
     kp_confidence: float = 0.5
