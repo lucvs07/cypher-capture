@@ -204,15 +204,16 @@ class IncidentTracker:
                 # Postura normal (reason vazio) e o proprio motivo do
                 # incidente ser EPI: usa os itens ausentes como reason em vez
                 # de deixar o campo em branco no historico/dashboard.
-                ", ".join(event.epi_violations) if tipo == TIPO_EPI_VIOLATION else event.reason
+                ", ".join(t.value for t in event.epi_violations)
+                if tipo == TIPO_EPI_VIOLATION else event.reason
             ),
             posture_category=event.posture,
             zone_status=event.zone_status,
             zone_name=event.zone_name,
             reba_score=event.reba_score,
             action_level=event.action_level,
-            epi_present=list(event.epi_present),
-            epi_missing=list(event.epi_violations),
+            epi_present=[t.value for t in event.epi_present],
+            epi_missing=[t.value for t in event.epi_violations],
             detected_at=now,
             peak_severity=event.severity,
             snapshot_frame=self._frame_atual,

@@ -44,19 +44,10 @@ SCENARIOS = {
     "test_bus": "data/validation/test_bus.mp4",
 }
 
-# Formatos legados que o fluxo usava antes do EpiTipo trafegar direto —
-# mantidos aqui so pra o gravador ler as duas versoes do codigo.
-_LEGADO = {
-    "HELMET": "HELMET", "Goggles": "GOGGLES", "GLOVE": "GLOVE",
-    "VEST": "VEST", "boots": "BOOTS", "MASK": "MASK",
-    "no_helmet": "HELMET", "no_goggle": "GOGGLES", "no_gloves": "GLOVE",
-    "no_vest": "VEST", "no_boots": "BOOTS", "no_mask": "MASK",
-}
-
 
 def _epi(valor) -> str:
-    nome = getattr(valor, "value", valor)
-    return _LEGADO.get(nome, nome)
+    # EpiTipo no PersonEvent, nome canonico (str) no IncidentReport.
+    return getattr(valor, "value", valor)
 
 
 def _epis(valores) -> list[str]:

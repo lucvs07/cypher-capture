@@ -73,6 +73,8 @@ class IncidentReport:
     reba_score: int = 1
     action_level: int = 1
     zone_name: Optional[str] = None
+    # Nomes canonicos de EpiTipo ("HELMET", "GOGGLES", ...) — o mesmo enum
+    # que a API valida em IncidentRequest.epiPresent/epiMissing.
     epi_present: list[str] = field(default_factory=list)
     epi_missing: list[str] = field(default_factory=list)
     snapshot_url: Optional[str] = None

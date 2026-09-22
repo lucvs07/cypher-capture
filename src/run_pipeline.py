@@ -438,8 +438,8 @@ def main() -> None:
             # Event sink: surface anything at/above the severity threshold
             for ev in events:
                 if ev.severity >= args.min_severity:
-                    present = ",".join(ev.epi_present) or "-"
-                    viol = ",".join(ev.epi_violations) or "-"
+                    present = ",".join(t.value for t in ev.epi_present) or "-"
+                    viol = ",".join(t.value for t in ev.epi_violations) or "-"
                     print(f"\n[EVENT] f{frame_idx} id#{ev.person_id} sev={ev.severity} "
                           f"posture={ev.posture} reba={ev.reba_score}(AL{ev.action_level}) "
                           f"zone={ev.zone_status}/{ev.zone_name or '-'} ppe=[{present}] viol={viol} :: {ev.reason}")
