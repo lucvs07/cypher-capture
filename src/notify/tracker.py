@@ -97,6 +97,10 @@ class IncidentTracker:
         """
         for key in list(self._open):
             self._close(key, now, ClosedReason.PIPELINE_STOPPED)
+        # Fechamentos ainda dentro da janela de merge nao tem mais chance de
+        # reabrir: o pipeline esta parando. Sai tudo agora.
+        for key in list(self._merged):
+            self._emitir_fechamento(key)
 
     def open_incidents(self) -> dict[IncidentKey, IncidentReport]:
         return dict(self._open)
@@ -155,11 +159,10 @@ class IncidentTracker:
             return False
         if (now - relatorio.detected_at).total_seconds() < limite:
             return False
+        # RENOTIFIED sai na hora e nunca entra na janela de merge (ver
+        # _close), entao o _open_or_merge abaixo abre um incidente novo em
+        # vez de reabrir o que acabou de fechar.
         self._close((event.person_id, tipo), now, ClosedReason.RENOTIFIED)
-        # A janela de merge reabriria o mesmo episodio (mesmo motivo de
-        # existir) — pular a chave de merge deste fechamento evita isso.
-        self._last_close.pop((event.person_id, tipo), None)
-        self._merged.pop((event.person_id, tipo), None)
         self._open_or_merge(event, tipo, now)
         return True
 
@@ -185,6 +188,7 @@ class IncidentTracker:
             if desde <= self.config.merge_window_seconds:
                 # Reabre o mesmo episódio: o alarme oscilou, não recomeçou.
                 anterior = self._merged.pop(key, None)
+                self._last_close.pop(key, None)
                 if anterior is not None:
                     anterior.ended_at = None
                     anterior.duration_seconds = None
@@ -226,15 +230,32 @@ class IncidentTracker:
         relatorio.snapshot_frame = None
 
     def _close(self, key: IncidentKey, now: datetime, motivo: str) -> None:
+        """Encerra o episodio localmente.
+
+        O fechamento so e enviado (on_close) quando a janela de merge vence
+        sem reabertura — ver _expirar_janela_de_merge. Antes disso, uma
+        reabertura dentro da janela reusava o episodio so do lado do
+        pipeline: o backend ja tinha recebido o fechamento e mostrava o
+        incidente como encerrado enquanto o risco continuava ativo.
+        RENOTIFIED e PIPELINE_STOPPED nunca reabrem, entao saem na hora.
+        """
         relatorio = self._open.pop(key, None)
         if relatorio is None:
             return
         relatorio.ended_at = now
         relatorio.duration_seconds = (now - relatorio.detected_at).total_seconds()
         relatorio.closed_reason = motivo
+        if motivo in (ClosedReason.RENOTIFIED, ClosedReason.PIPELINE_STOPPED):
+            self._on_close(relatorio)
+            return
         self._last_close[key] = now
         self._merged[key] = relatorio
-        self._on_close(relatorio)
+
+    def _emitir_fechamento(self, key: IncidentKey) -> None:
+        self._last_close.pop(key, None)
+        relatorio = self._merged.pop(key, None)
+        if relatorio is not None:
+            self._on_close(relatorio)
 
     def _evict_lost_tracks(self, now: datetime) -> None:
         """Fecha episódios de tracks que sumiram do quadro.
@@ -257,14 +278,13 @@ class IncidentTracker:
             self._epi_ativo.pop(track_id, None)
 
     def _expirar_janela_de_merge(self, now: datetime) -> None:
-        """Esquece fechamentos cuja janela de merge ja passou.
+        """Envia os fechamentos cuja janela de merge passou sem reabertura.
 
-        So servem para reabrir o mesmo episodio dentro da janela; depois
-        dela, _open_or_merge nunca mais os consulta, e sem esta limpeza
-        _merged/_last_close cresciam um item por incidente, para sempre.
+        A partir dai o episodio nao reabre mais: o fechamento e definitivo e
+        pode ir para o backend. Tambem e o que impede _merged/_last_close de
+        crescerem um item por incidente, para sempre.
         """
         janela = self.config.merge_window_seconds
         for key in [k for k, fechado_em in self._last_close.items()
-                    if (now - fechado_em).total_seconds() > janela]:
-            del self._last_close[key]
-            self._merged.pop(key, None)
+                    if (now - fechado_em).total_seconds() >= janela]:
+            self._emitir_fechamento(key)
