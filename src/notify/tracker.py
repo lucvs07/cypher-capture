@@ -69,6 +69,7 @@ class IncidentTracker:
         # no mesmo frame, com ZONE_VIOLATION (postura) E EPI_VIOLATION (epi)
         # abertos ao mesmo tempo — por isso o estado anterior de EPI nao cabe
         # em previous_posture/POSTURE_TO_TYPE, precisa do proprio dicionario.
+        # Espelha "ha EPI_VIOLATION aberto para o track" (ver _handle_epi).
         self._epi_ativo: dict[int, bool] = {}
 
     # ------------------------------------------------------------------
@@ -127,18 +128,24 @@ class IncidentTracker:
         postura da pessoa e normal — ate entao EPI so entrava como dado
         anexo (epiMissing) de um incidente ja aberto por outro motivo."""
         tem_violacao_agora = bool(event.epi_violations)
-        tinha_antes = self._epi_ativo.get(event.person_id, False)
-        self._epi_ativo[event.person_id] = tem_violacao_agora
+        # "Tinha antes" e ter um incidente de EPI aberto, nao ter visto a
+        # violacao no frame anterior. Com a flag por frame, quem ja entrava
+        # sem EPI nunca abria incidente: nos primeiros min_track_frames o
+        # guard de _open_or_merge barrava a abertura, a flag virava True
+        # mesmo assim e dali em diante so se atualizava o pico de um
+        # incidente que nao existia. O mesmo com severidade abaixo de
+        # min_severity no primeiro frame da violacao.
+        key = (event.person_id, TIPO_EPI_VIOLATION)
+        tinha_antes = key in self._open
 
         if tem_violacao_agora and tinha_antes:
             if not self._talvez_renotificar(event, TIPO_EPI_VIOLATION, now):
                 self._update_peak(event, TIPO_EPI_VIOLATION)
-            return
-        if not tem_violacao_agora and tinha_antes:
-            self._close((event.person_id, TIPO_EPI_VIOLATION), now, ClosedReason.STATE_EXIT)
-            return
-        if tem_violacao_agora and not tinha_antes:
+        elif not tem_violacao_agora and tinha_antes:
+            self._close(key, now, ClosedReason.STATE_EXIT)
+        elif tem_violacao_agora:
             self._open_or_merge(event, TIPO_EPI_VIOLATION, now)
+        self._epi_ativo[event.person_id] = key in self._open
 
     def _talvez_renotificar(self, event: PersonEvent, tipo: str, now: datetime) -> bool:
         """Fecha e reabre como incidente novo quando a mesma violacao

@@ -367,6 +367,31 @@ class TestEpiComoEixoIndependenteDaPostura:
         assert coletor.abertos[0].type == "EPI_VIOLATION"
         assert coletor.abertos[0].epi_missing == ["HELMET"]
 
+    def test_track_que_ja_entra_sem_epi_abre_incidente_quando_passa_do_guard(self):
+        """Achado 2026-09-22: a flag de EPI virava True no primeiro frame,
+        enquanto min_track_frames ainda barrava a abertura, e o incidente
+        nunca abria — 0 incidentes em 40 frames sem capacete."""
+        tracker, coletor = montar(min_track_frames=15)
+
+        for i in range(40):
+            tracker.process([evento_epi(1, [EpiTipo.HELMET])],
+                            T0 + timedelta(seconds=i * 0.1))
+
+        assert len(coletor.abertos) == 1
+        assert coletor.abertos[0].type == "EPI_VIOLATION"
+        assert coletor.abertos[0].detected_at == T0 + timedelta(seconds=1.4)
+
+    def test_epi_abaixo_do_limiar_abre_quando_a_severidade_sobe(self):
+        tracker, coletor = montar(min_severity=3)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento_epi(1, [EpiTipo.HELMET], severidade=2)], T0)
+        assert coletor.abertos == []
+
+        tracker.process([evento_epi(1, [EpiTipo.HELMET], severidade=3)],
+                        T0 + timedelta(seconds=1))
+
+        assert len(coletor.abertos) == 1
+
     def test_epi_deixa_de_faltar_fecha_o_incidente(self):
         tracker, coletor = montar()
         aquecer(tracker, 1, 20, T0)

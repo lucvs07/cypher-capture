@@ -306,6 +306,7 @@ def main() -> None:
             run_id=notify_config.run_id,
             min_severity=notify_config.min_severity,
             merge_window_seconds=notify_config.merge_window_seconds,
+            renotify_after_seconds=notify_config.renotify_after_seconds,
             evict_after_frames=notify_config.evict_after_frames,
             min_track_frames=notify_config.min_track_frames,
             fps=config.target_fps,
