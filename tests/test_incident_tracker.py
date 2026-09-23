@@ -67,6 +67,11 @@ def aquecer(tracker, person_id: int, frames: int, quando: datetime) -> None:
         tracker.process([evento(person_id, "normal", "normal", severidade=0)], quando)
 
 
+def passar_janela(tracker, desde: datetime) -> None:
+    """Fechamento so e enviado quando a janela de merge vence sem reabertura."""
+    tracker.process([], desde + timedelta(seconds=tracker.config.merge_window_seconds + 1))
+
+
 def test_evento_nasce_com_postura_anterior_normal():
     evento = PersonEvent(person_id=1)
 
@@ -114,10 +119,12 @@ def test_volta_ao_normal_fecha_com_duracao_e_pico():
 
     tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
                     T0 + timedelta(seconds=5))
+    assert coletor.fechados == []            # ainda pode reabrir na janela
+    passar_janela(tracker, T0 + timedelta(seconds=5))
 
     assert len(coletor.fechados) == 1
     fechado = coletor.fechados[0]
-    assert fechado.duration_seconds == pytest.approx(5.0)
+    assert fechado.duration_seconds == pytest.approx(5.0)   # fim real, nao o envio
     assert fechado.peak_severity == 4       # pico, não a severidade de abertura
     assert fechado.closed_reason == ClosedReason.STATE_EXIT
 
@@ -154,6 +161,7 @@ def test_escalacao_fecha_um_tipo_e_abre_o_outro():
 
     tracker.process([evento(1, "immediate_risk", "ergonomically_inadequate")],
                     T0 + timedelta(seconds=2))
+    passar_janela(tracker, T0 + timedelta(seconds=2))
 
     assert [r.type for r in coletor.abertos] == ["ERGONOMIC_RISK", "FALL_RISK"]
     assert coletor.fechados[0].type == "ERGONOMIC_RISK"
@@ -322,6 +330,7 @@ def test_eviction_fecha_track_que_some_do_quadro():
     # Ninguém mais reporta o track 1: a pessoa saiu do quadro.
     for i in range(15):
         tracker.process([], T0 + timedelta(seconds=1 + i * 0.05))
+    passar_janela(tracker, T0 + timedelta(seconds=2))
 
     assert len(coletor.fechados) == 1
     assert coletor.fechados[0].closed_reason == ClosedReason.TRACK_LOST
@@ -398,6 +407,7 @@ class TestEpiComoEixoIndependenteDaPostura:
         tracker.process([evento_epi(1, [EpiTipo.HELMET])], T0)
 
         tracker.process([evento_epi(1, [])], T0 + timedelta(seconds=1))
+        passar_janela(tracker, T0 + timedelta(seconds=1))
 
         assert len(coletor.fechados) == 1
         assert coletor.fechados[0].closed_reason == ClosedReason.STATE_EXIT
@@ -571,3 +581,153 @@ class TestLiberaMemoria:
         assert 1 not in tracker._last_frame_seen
         assert 1 not in tracker._epi_ativo
         assert 2 in tracker._frames_seen
+
+
+class TestFechamentoSoSaiDepoisDaJanela:
+    """Achado 2026-09-22: a reabertura dentro da janela de merge acontecia so
+    do lado do pipeline — o backend ja tinha recebido o fechamento e mostrava
+    o incidente encerrado enquanto o risco continuava ativo."""
+
+    def test_reabertura_na_janela_nunca_envia_o_fechamento_intermediario(self):
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+        tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=10))
+
+        passar_janela(tracker, T0 + timedelta(seconds=10))
+
+        assert len(coletor.abertos) == 1
+        assert coletor.fechados == []            # o episodio continua aberto
+        assert tracker.open_incidents()
+
+    def test_episodio_reaberto_fecha_uma_vez_so_com_a_duracao_total(self):
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+        tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=10))
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=12))
+
+        passar_janela(tracker, T0 + timedelta(seconds=12))
+
+        assert len(coletor.fechados) == 1
+        assert coletor.fechados[0].duration_seconds == pytest.approx(12.0)
+
+    def test_flush_envia_fechamento_pendente_na_janela(self):
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+
+        tracker.flush(T0 + timedelta(seconds=4))
+
+        assert len(coletor.fechados) == 1
+        assert coletor.fechados[0].closed_reason == ClosedReason.STATE_EXIT
+        assert coletor.fechados[0].duration_seconds == pytest.approx(3.0)
+
+    def test_tick_envia_fechamento_mesmo_sem_frame(self):
+        """Camera caiu logo depois do fechamento: sem frame, process() nao
+        roda, e o fechamento ficava preso ate a camera voltar."""
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+
+        tracker.tick(T0 + timedelta(seconds=10))
+        assert coletor.fechados == []
+
+        tracker.tick(T0 + timedelta(seconds=19))
+        assert len(coletor.fechados) == 1
+        assert coletor.fechados[0].duration_seconds == pytest.approx(3.0)
+
+    def test_tick_nao_dispara_eviction(self):
+        tracker, coletor = montar(merge_window_seconds=15.0, evict_after_frames=5)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+
+        for i in range(100):
+            tracker.tick(T0 + timedelta(seconds=1 + i * 0.01))
+
+        assert tracker.open_incidents()
+        assert coletor.fechados == []
+
+    def test_frame_depois_da_janela_envia_o_fechamento_antes_da_abertura_nova(self):
+        ordem = []
+        config = TrackerConfig(camera_id="CAM-01", run_id="run-t",
+                               merge_window_seconds=15.0)
+        tracker = IncidentTracker(config,
+                                  lambda r: ordem.append(("open", r.incident_key)),
+                                  lambda r: ordem.append(("close", r.incident_key)))
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+
+        tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=30))
+
+        assert [tipo for tipo, _ in ordem] == ["open", "close", "open"]
+        assert ordem[1][1] == ordem[0][1]
+
+    def test_track_perdido_fica_pendente_ate_a_janela_vencer(self):
+        tracker, coletor = montar(merge_window_seconds=15.0, evict_after_frames=10)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        for i in range(15):
+            tracker.process([], T0 + timedelta(seconds=1 + i * 0.05))
+
+        assert coletor.fechados == []
+        assert tracker.open_incidents() == {}
+
+        passar_janela(tracker, T0 + timedelta(seconds=2))
+
+        assert len(coletor.fechados) == 1
+        assert coletor.fechados[0].closed_reason == ClosedReason.TRACK_LOST
+
+    def test_reaberto_na_janela_e_depois_renotificado_fecha_uma_vez(self):
+        tracker, coletor = montar(merge_window_seconds=15.0, renotify_after_seconds=60.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "critical_zone", "normal", severidade=3)], T0)
+        tracker.process([evento(1, "normal", "critical_zone", severidade=0)],
+                        T0 + timedelta(seconds=3))
+        tracker.process([evento(1, "critical_zone", "normal", severidade=3)],
+                        T0 + timedelta(seconds=10))
+
+        tracker.process([evento(1, "critical_zone", "critical_zone", severidade=3)],
+                        T0 + timedelta(seconds=61))
+        passar_janela(tracker, T0 + timedelta(seconds=61))
+
+        assert len(coletor.fechados) == 1
+        assert coletor.fechados[0].closed_reason == ClosedReason.RENOTIFIED
+        assert coletor.fechados[0].duration_seconds == pytest.approx(61.0)
+        assert tracker._merged == {}
+        assert tracker._last_close == {}
+
+    def test_desescalada_na_janela_reabre_sem_enviar_o_escalated(self):
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "ergonomically_inadequate", "normal", severidade=2)], T0)
+        tracker.process([evento(1, "immediate_risk", "ergonomically_inadequate")],
+                        T0 + timedelta(seconds=2))
+
+        tracker.process([evento(1, "ergonomically_inadequate", "immediate_risk", severidade=2)],
+                        T0 + timedelta(seconds=5))
+
+        assert [r.type for r in coletor.abertos] == ["ERGONOMIC_RISK", "FALL_RISK"]
+        assert all(r.type != "ERGONOMIC_RISK" for r in coletor.fechados)
+        assert {t for _, t in tracker.open_incidents()} == {"ERGONOMIC_RISK"}
+
+    def test_sem_janela_o_fechamento_sai_na_hora(self):
+        tracker, coletor = montar(merge_window_seconds=0.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+
+        assert len(coletor.fechados) == 1
