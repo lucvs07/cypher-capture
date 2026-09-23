@@ -25842,6 +25842,17 @@
    "closed_reason": null
   },
   {
+   "frame": 500,
+   "action": "open",
+   "track": 9,
+   "type": "FALL_RISK",
+   "severity": 4,
+   "peak_severity": 4,
+   "epi_present": [],
+   "epi_missing": [],
+   "closed_reason": null
+  },
+  {
    "frame": 577,
    "action": "close",
    "track": 1,
@@ -25912,6 +25923,39 @@
     "VEST"
    ],
    "closed_reason": null
+  },
+  {
+   "frame": 883,
+   "action": "open",
+   "track": 17,
+   "type": "FALL_RISK",
+   "severity": 4,
+   "peak_severity": 4,
+   "epi_present": [],
+   "epi_missing": [],
+   "closed_reason": null
+  },
+  {
+   "frame": 986,
+   "action": "close",
+   "track": 9,
+   "type": "FALL_RISK",
+   "severity": 4,
+   "peak_severity": 4,
+   "epi_present": [],
+   "epi_missing": [],
+   "closed_reason": "TRACK_LOST"
+  },
+  {
+   "frame": 1349,
+   "action": "close",
+   "track": 17,
+   "type": "FALL_RISK",
+   "severity": 4,
+   "peak_severity": 4,
+   "epi_present": [],
+   "epi_missing": [],
+   "closed_reason": "TRACK_LOST"
   },
   {
    "frame": 1453,

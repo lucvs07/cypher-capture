@@ -168,6 +168,34 @@ def test_escalacao_fecha_um_tipo_e_abre_o_outro():
     assert coletor.fechados[0].closed_reason == ClosedReason.ESCALATED
 
 
+def test_track_que_ja_entra_em_risco_abre_quando_passa_do_guard():
+    """Achado 2026-09-22: a transicao de postura acontecia enquanto o track
+    ainda estava abaixo de min_track_frames, o guard barrava a abertura e o
+    classificador nao repetia a transicao — o incidente nunca abria."""
+    tracker, coletor = montar(min_track_frames=15)
+    tracker.process([evento(1, "critical_zone", "normal", severidade=3)], T0)
+
+    for i in range(1, 40):
+        tracker.process([evento(1, "critical_zone", "critical_zone", severidade=3)],
+                        T0 + timedelta(seconds=i * 0.1))
+
+    assert len(coletor.abertos) == 1
+    assert coletor.abertos[0].type == "ZONE_VIOLATION"
+    assert coletor.abertos[0].detected_at == T0 + timedelta(seconds=1.4)
+
+
+def test_postura_abaixo_do_limiar_abre_quando_a_severidade_sobe():
+    tracker, coletor = montar(min_severity=3)
+    aquecer(tracker, 1, 20, T0)
+    tracker.process([evento(1, "ergonomically_inadequate", "normal", severidade=2)], T0)
+    assert coletor.abertos == []
+
+    tracker.process([evento(1, "ergonomically_inadequate", "ergonomically_inadequate",
+                            severidade=3)], T0 + timedelta(seconds=1))
+
+    assert len(coletor.abertos) == 1
+
+
 def test_severidade_abaixo_do_limiar_nao_abre_incidente():
     tracker, coletor = montar(min_severity=3)
     aquecer(tracker, 1, 20, T0)

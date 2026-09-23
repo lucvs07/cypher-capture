@@ -135,7 +135,16 @@ class IncidentTracker:
         anterior = POSTURE_TO_TYPE.get(event.previous_posture)
 
         if atual == anterior:
-            if atual is not None and not self._talvez_renotificar(event, atual, now):
+            if atual is None:
+                pass
+            elif (event.person_id, atual) not in self._open:
+                # A abertura foi barrada na transicao (track abaixo de
+                # min_track_frames ou severidade abaixo de min_severity) e o
+                # classificador nao repete a transicao: sem tentar de novo
+                # aqui, quem ja entrava no quadro em risco nunca abria
+                # incidente — so se atualizava o pico de um que nao existia.
+                self._open_or_merge(event, atual, now)
+            elif not self._talvez_renotificar(event, atual, now):
                 self._update_peak(event, atual)
         else:
             if anterior is not None:
