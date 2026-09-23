@@ -47,6 +47,8 @@ outputs/captures/*
 
 # Spill de incidentes não entregues à API (fila de reenvio, drenada na subida)
 outputs/incidents.jsonl
+# Incidentes recusados de vez pelo backend (4xx) — so pra inspecao, nunca reenviados
+outputs/incidents.rejected.jsonl
 
 # Cache de config remota e de apiKey provisionada — a segunda carrega um
 # segredo de verdade, nunca deve ir para o repositório.

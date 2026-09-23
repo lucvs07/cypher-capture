@@ -1,4 +1,11 @@
-from src.pose.epi_catalog import EpiTipo
+import logging
+from pathlib import Path
+
+import pytest
+
+from src.pose.epi_catalog import EpiTipo, resolve_wire_names
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class TestResolucaoPorClasseDoDetector:
@@ -29,12 +36,36 @@ class TestResolucaoPorNomeDoCadastro:
         # o pipeline por um dado legado.
         assert EpiTipo.from_wire_name("capacete") is None
 
+    @pytest.mark.parametrize("valor", [None, 3, ["HELMET"], {"x": 1}])
+    def test_valor_que_nao_e_string_devolve_none(self, valor):
+        assert EpiTipo.from_wire_name(valor) is None
 
-class TestLabelDeViolacao:
-    def test_cada_membro_tem_violation_label_com_prefixo_no(self):
-        for tipo in EpiTipo:
-            assert tipo.violation_label.startswith("no_")
 
-    def test_labels_de_violacao_sao_unicas(self):
-        labels = [tipo.violation_label for tipo in EpiTipo]
-        assert len(labels) == len(set(labels))
+class TestResolveWireNames:
+    def test_resolve_deduplica_e_preserva_ordem(self):
+        assert resolve_wire_names(["GLOVE", "helmet", "HELMET"], "zona Z") == [
+            EpiTipo.GLOVE, EpiTipo.HELMET]
+
+    def test_none_ou_vazio_vira_lista_vazia(self):
+        assert resolve_wire_names(None, "zona Z") == []
+        assert resolve_wire_names([], "zona Z") == []
+
+    def test_nao_detectavel_e_descartado_com_aviso(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            tipos = resolve_wire_names(["auricular", "VEST", None], "zona Z")
+        assert tipos == [EpiTipo.VEST]
+        assert "zona Z" in caplog.text
+        assert "'auricular'" in caplog.text
+
+
+PESOS = sorted((ROOT / "models").glob("*.pt"))
+
+
+@pytest.mark.parametrize("pesos", PESOS, ids=lambda p: p.name)
+def test_catalogo_bate_com_as_classes_do_modelo(pesos):
+    """Retreino que renomeie uma classe (ex.: Goggles -> goggles) faria
+    from_detector_label devolver None e o item seria sempre "ausente" —
+    falso positivo de EPI em massa sem erro nenhum. Este teste pega isso."""
+    ultralytics = pytest.importorskip("ultralytics")
+    nomes = set(ultralytics.YOLO(str(pesos)).names.values()) - {"Person"}
+    assert nomes == {tipo.detector_label for tipo in EpiTipo}

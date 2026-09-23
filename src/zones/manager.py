@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Literal
 
+from ..pose.epi_catalog import EpiTipo, resolve_wire_names
+
 
 @dataclass
 class Zone:
@@ -14,7 +16,10 @@ class Zone:
     zone_type: Literal["restricted", "attention"]
     polygon: list[tuple[float, float]]   # ordered (x, y) vertices in pixel coords
     severity: int = 3                    # 1=low … 4=critical
-    required_ppe: list[str] = field(default_factory=list)
+    # Nomes do cadastro ("HELMET", "helmet" de um zones.json local) sao
+    # resolvidos pra EpiTipo aqui, na carga — ponto comum a API, zones.json
+    # e annotate_zones. Nome que o modelo nao detecta e descartado com aviso.
+    required_ppe: list[EpiTipo] = field(default_factory=list)
     # Achado SPI 2026-09-16: ate entao zona so influenciava severidade de
     # alerta, nunca o que era avaliado (EPI/pose sempre rodavam pra todo
     # mundo). Quando True, esta zona e a area de trabalho: EPI e pose so
@@ -22,13 +27,16 @@ class Zone:
     # comportamento anterior.
     delimita_avaliacao: bool = False
 
+    def __post_init__(self) -> None:
+        self.required_ppe = resolve_wire_names(self.required_ppe, f"zona {self.name!r}")
+
     @staticmethod
     def new(
         name: str,
         zone_type: Literal["restricted", "attention"],
         polygon: list[tuple[float, float]],
         severity: int = 3,
-        required_ppe: list[str] | None = None,
+        required_ppe: list[EpiTipo | str] | None = None,
         delimita_avaliacao: bool = False,
     ) -> "Zone":
         return Zone(
@@ -82,7 +90,10 @@ class ZoneManager:
     def _save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with open(self._path, "w") as f:
-            json.dump([asdict(z) for z in self._zones.values()], f, indent=2)
+            json.dump([
+                {**asdict(z), "required_ppe": [t.value for t in z.required_ppe]}
+                for z in self._zones.values()
+            ], f, indent=2)
 
     def _load(self) -> None:
         with open(self._path) as f:

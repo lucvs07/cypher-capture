@@ -1,5 +1,7 @@
 # Plano de Testes — Dia 1 (23/06/2026)
 
+> **Atualização 22/09/2026:** as pendências deste documento sobre classes `no_*` (linhas sobre `EPI_VIOLATION_LABELS`, `f"no_{ppe}"` e "depende de o modelo emitir `no_*`") estão resolvidas. O modelo só tem classes de presença, EPI ausente é inferido por `src/pose/epi_absence.py`, e o fluxo inteiro usa `EpiTipo` (`src/pose/epi_catalog.py`). O restante do plano é registro histórico do Dia 1.
+
 **Objetivo do dia (6h):** ao final, ter (a) o CLI do pipeline unificado funcionando, (b) os **3 vídeos gravados**, e (c) a **latência E2E medida**. Esses são os bloqueadores do Dia 2.
 **Mentoria SPI:** quinta-feira 25/06/2026 — o Dia 1 produz a evidência que sustenta o checkpoint.
 

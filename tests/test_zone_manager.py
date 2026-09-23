@@ -6,6 +6,7 @@ dedicados; não é reescrito aqui, só preservado.
 """
 from __future__ import annotations
 
+from src.pose.epi_catalog import EpiTipo
 from src.zones.manager import Zone, ZoneManager
 
 
@@ -51,3 +52,19 @@ def test_zones_pre_carregadas_indexam_por_zone_id_como_o_carregamento_por_arquiv
     manager = ZoneManager(str(tmp_path / "zones.json"), zones=[z1, z2])
 
     assert {z.zone_id for z in manager.get_all()} == {z1.zone_id, z2.zone_id}
+
+
+def test_required_ppe_e_resolvido_pra_epi_tipo_na_criacao():
+    zona = Zone.new("A", "restricted", [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+                    required_ppe=["helmet", " Boots ", "HELMET", "cinto"])
+
+    assert zona.required_ppe == [EpiTipo.HELMET, EpiTipo.BOOTS]
+
+
+def test_required_ppe_sobrevive_gravacao_e_leitura_com_nome_canonico(tmp_path):
+    caminho = tmp_path / "zones.json"
+    ZoneManager(str(caminho)).add(
+        Zone.new("A", "restricted", [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], required_ppe=["helmet"]))
+
+    assert '"HELMET"' in caminho.read_text()
+    assert ZoneManager(str(caminho)).get_all()[0].required_ppe == [EpiTipo.HELMET]

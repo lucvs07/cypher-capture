@@ -29,23 +29,20 @@ class EpiAbsenceTracker:
     def update(
         self,
         person_id: int,
-        epi_present_labels: list[str],
+        epi_present: list[EpiTipo],
         required: list[EpiTipo],
         bbox_truncated: bool,
-    ) -> list[str]:
-        """Devolve os violation_label (``no_helmet``, ...) confirmados como
-        ausentes para esta pessoa neste frame."""
+    ) -> list[EpiTipo]:
+        """Devolve os EPIs exigidos confirmados como ausentes para esta
+        pessoa neste frame."""
         frames_seen = self._frames_seen.get(person_id, 0) + 1
         self._frames_seen[person_id] = frames_seen
         if frames_seen < self.min_track_frames:
             return []
 
-        presentes = {
-            tipo for tipo in (EpiTipo.from_detector_label(lbl) for lbl in epi_present_labels)
-            if tipo is not None
-        }
+        presentes = set(epi_present)
 
-        confirmados: list[str] = []
+        confirmados: list[EpiTipo] = []
         for tipo in required:
             chave = (person_id, tipo)
             if tipo in presentes:
@@ -60,7 +57,7 @@ class EpiAbsenceTracker:
             streak = self._streak.get(chave, 0) + 1
             self._streak[chave] = streak
             if streak >= self.confirm_frames:
-                confirmados.append(tipo.violation_label)
+                confirmados.append(tipo)
 
         return confirmados
 

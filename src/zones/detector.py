@@ -6,6 +6,7 @@ from enum import Enum
 import cv2
 import numpy as np
 
+from ..pose.epi_catalog import EpiTipo
 from .manager import Zone, ZoneManager
 
 
@@ -23,7 +24,7 @@ class ZoneResult:
     status: ZoneStatus
     distance_px: float
     severity: int
-    required_ppe: list[str] = field(default_factory=list)
+    required_ppe: list[EpiTipo] = field(default_factory=list)
     delimita_avaliacao: bool = False
     # Achado de campo 2026-09-20: zone_type nunca sobrevivia ate aqui, entao
     # uma zona "attention" (area de trabalho) disparava CRITICAL_ZONE/
