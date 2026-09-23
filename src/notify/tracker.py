@@ -85,12 +85,27 @@ class IncidentTracker:
         self._frame_idx += 1
         self._frame_atual = frame
 
+        # Antes de tratar os eventos: se o frame chega depois de um buraco
+        # maior que a janela, o fechamento antigo sai antes da abertura nova.
+        # Estrito (>) porque em desde == janela o episodio ainda pode reabrir.
+        self._expirar_janela_de_merge(now, no_limite=False)
+
         for event in events:
             self._frames_seen[event.person_id] = self._frames_seen.get(event.person_id, 0) + 1
             self._last_frame_seen[event.person_id] = self._frame_idx
             self._handle(event, now)
 
         self._evict_lost_tracks(now)
+        self._expirar_janela_de_merge(now)
+
+    def tick(self, now: datetime) -> None:
+        """So envia os fechamentos cuja janela de merge venceu.
+
+        Para chamar quando nao chega frame (camera caida, reconectando): sem
+        isto um fechamento real ficaria preso ate o proximo frame. Nao usar
+        process([], now) no lugar — ele avanca o contador de frames, e a
+        eviction fecharia como TRACK_LOST tudo o que esta aberto.
+        """
         self._expirar_janela_de_merge(now)
 
     def flush(self, now: datetime) -> None:
@@ -285,7 +300,7 @@ class IncidentTracker:
             self._frames_seen.pop(track_id, None)
             self._epi_ativo.pop(track_id, None)
 
-    def _expirar_janela_de_merge(self, now: datetime) -> None:
+    def _expirar_janela_de_merge(self, now: datetime, no_limite: bool = True) -> None:
         """Envia os fechamentos cuja janela de merge passou sem reabertura.
 
         A partir dai o episodio nao reabre mais: o fechamento e definitivo e
@@ -293,6 +308,10 @@ class IncidentTracker:
         crescerem um item por incidente, para sempre.
         """
         janela = self.config.merge_window_seconds
-        for key in [k for k, fechado_em in self._last_close.items()
-                    if (now - fechado_em).total_seconds() >= janela]:
+
+        def venceu(fechado_em: datetime) -> bool:
+            desde = (now - fechado_em).total_seconds()
+            return desde >= janela if no_limite else desde > janela
+
+        for key in [k for k, fechado_em in self._last_close.items() if venceu(fechado_em)]:
             self._emitir_fechamento(key)

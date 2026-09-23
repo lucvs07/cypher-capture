@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import sys
 import time
 from collections import deque
@@ -396,6 +397,12 @@ def main() -> None:
     frame_idx = 0
     t_start = time.perf_counter()
 
+    # O orquestrador para a câmera com SIGTERM. O padrão do Python mata o
+    # processo sem rodar o finally, e o flush nunca acontecia: incidentes
+    # abertos ficavam órfãos e fechamentos ainda na janela de merge se
+    # perdiam. SystemExit sobe pelo laço e passa pelo finally.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(128 + signal.SIGTERM))
+
     try:
         while cap.isOpened():
             ret, frame = cap.read()
@@ -403,7 +410,10 @@ def main() -> None:
                 if cap.state == "encerrado":
                     break
                 # Câmera ao vivo sem frame novo (ou reconectando): o laço
-                # continua girando em vez de encerrar a execução.
+                # continua girando em vez de encerrar a execução. O tick
+                # manda os fechamentos cuja janela de merge venceu nesse meio
+                # tempo, que senão ficariam presos até a câmera voltar.
+                tracker.tick(datetime.now(timezone.utc).astimezone())
                 time.sleep(0.005)
                 continue
 
