@@ -25,6 +25,11 @@ from .incident import (
     build_incident_key,
 )
 
+# Contrato do on_open: o handler precisa pegar snapshot_frame antes de
+# retornar (copiar, codificar ou guardar a referencia num item proprio, como o
+# HttpIncidentSink faz). Logo depois o tracker zera o campo no relatorio para
+# nao prender uma imagem por incidente; um handler que enfileirasse o proprio
+# relatorio e lesse o frame depois, num worker, receberia None.
 Handler = Callable[[IncidentReport], None]
 
 # Chave de um episódio em curso: o par (track, tipo). O mesmo track pode ter
@@ -223,11 +228,14 @@ class IncidentTracker:
             snapshot_frame=self._frame_atual,
         )
         self._open[key] = relatorio
-        self._on_open(relatorio)
-        # O sink ja pegou a referencia do frame em on_open (sincrono). Manter
-        # aqui prendia uma imagem inteira por incidente enquanto o relatorio
-        # vivesse em _open/_merged — GBs num processo que roda por dias.
-        relatorio.snapshot_frame = None
+        try:
+            self._on_open(relatorio)
+        finally:
+            # O sink ja pegou a referencia do frame em on_open (sincrono, ver o
+            # contrato em Handler). Manter aqui prendia uma imagem inteira por
+            # incidente enquanto o relatorio vivesse em _open/_merged — GBs
+            # num processo que roda por dias.
+            relatorio.snapshot_frame = None
 
     def _close(self, key: IncidentKey, now: datetime, motivo: str) -> None:
         """Encerra o episodio localmente.
