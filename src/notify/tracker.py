@@ -25,6 +25,11 @@ from .incident import (
     build_incident_key,
 )
 
+# Contrato do on_open: o handler precisa pegar snapshot_frame antes de
+# retornar (copiar, codificar ou guardar a referencia num item proprio, como o
+# HttpIncidentSink faz). Logo depois o tracker zera o campo no relatorio para
+# nao prender uma imagem por incidente; um handler que enfileirasse o proprio
+# relatorio e lesse o frame depois, num worker, receberia None.
 Handler = Callable[[IncidentReport], None]
 
 # Chave de um episódio em curso: o par (track, tipo). O mesmo track pode ter
@@ -69,6 +74,7 @@ class IncidentTracker:
         # no mesmo frame, com ZONE_VIOLATION (postura) E EPI_VIOLATION (epi)
         # abertos ao mesmo tempo — por isso o estado anterior de EPI nao cabe
         # em previous_posture/POSTURE_TO_TYPE, precisa do proprio dicionario.
+        # Espelha "ha EPI_VIOLATION aberto para o track" (ver _handle_epi).
         self._epi_ativo: dict[int, bool] = {}
 
     # ------------------------------------------------------------------
@@ -86,6 +92,7 @@ class IncidentTracker:
             self._handle(event, now)
 
         self._evict_lost_tracks(now)
+        self._expirar_janela_de_merge(now)
 
     def flush(self, now: datetime) -> None:
         """Fecha tudo o que restou aberto. Chamado no encerramento do pipeline.
@@ -127,18 +134,24 @@ class IncidentTracker:
         postura da pessoa e normal — ate entao EPI so entrava como dado
         anexo (epiMissing) de um incidente ja aberto por outro motivo."""
         tem_violacao_agora = bool(event.epi_violations)
-        tinha_antes = self._epi_ativo.get(event.person_id, False)
-        self._epi_ativo[event.person_id] = tem_violacao_agora
+        # "Tinha antes" e ter um incidente de EPI aberto, nao ter visto a
+        # violacao no frame anterior. Com a flag por frame, quem ja entrava
+        # sem EPI nunca abria incidente: nos primeiros min_track_frames o
+        # guard de _open_or_merge barrava a abertura, a flag virava True
+        # mesmo assim e dali em diante so se atualizava o pico de um
+        # incidente que nao existia. O mesmo com severidade abaixo de
+        # min_severity no primeiro frame da violacao.
+        key = (event.person_id, TIPO_EPI_VIOLATION)
+        tinha_antes = key in self._open
 
         if tem_violacao_agora and tinha_antes:
             if not self._talvez_renotificar(event, TIPO_EPI_VIOLATION, now):
                 self._update_peak(event, TIPO_EPI_VIOLATION)
-            return
-        if not tem_violacao_agora and tinha_antes:
-            self._close((event.person_id, TIPO_EPI_VIOLATION), now, ClosedReason.STATE_EXIT)
-            return
-        if tem_violacao_agora and not tinha_antes:
+        elif not tem_violacao_agora and tinha_antes:
+            self._close(key, now, ClosedReason.STATE_EXIT)
+        elif tem_violacao_agora:
             self._open_or_merge(event, TIPO_EPI_VIOLATION, now)
+        self._epi_ativo[event.person_id] = key in self._open
 
     def _talvez_renotificar(self, event: PersonEvent, tipo: str, now: datetime) -> bool:
         """Fecha e reabre como incidente novo quando a mesma violacao
@@ -204,21 +217,29 @@ class IncidentTracker:
                 # Postura normal (reason vazio) e o proprio motivo do
                 # incidente ser EPI: usa os itens ausentes como reason em vez
                 # de deixar o campo em branco no historico/dashboard.
-                ", ".join(event.epi_violations) if tipo == TIPO_EPI_VIOLATION else event.reason
+                ", ".join(t.value for t in event.epi_violations)
+                if tipo == TIPO_EPI_VIOLATION else event.reason
             ),
             posture_category=event.posture,
             zone_status=event.zone_status,
             zone_name=event.zone_name,
             reba_score=event.reba_score,
             action_level=event.action_level,
-            epi_present=list(event.epi_present),
-            epi_missing=list(event.epi_violations),
+            epi_present=[t.value for t in event.epi_present],
+            epi_missing=[t.value for t in event.epi_violations],
             detected_at=now,
             peak_severity=event.severity,
             snapshot_frame=self._frame_atual,
         )
         self._open[key] = relatorio
-        self._on_open(relatorio)
+        try:
+            self._on_open(relatorio)
+        finally:
+            # O sink ja pegou a referencia do frame em on_open (sincrono, ver o
+            # contrato em Handler). Manter aqui prendia uma imagem inteira por
+            # incidente enquanto o relatorio vivesse em _open/_merged — GBs
+            # num processo que roda por dias.
+            relatorio.snapshot_frame = None
 
     def _close(self, key: IncidentKey, now: datetime, motivo: str) -> None:
         relatorio = self._open.pop(key, None)
@@ -243,3 +264,23 @@ class IncidentTracker:
             track_id, _ = key
             if self._last_frame_seen.get(track_id, 0) <= limite:
                 self._close(key, now, ClosedReason.TRACK_LOST)
+
+        # Estado por track: o ByteTrack da id novo a cada pessoa que entra no
+        # quadro, entao sem isto os dicionarios so crescem ao longo da execucao.
+        for track_id in [t for t, visto in self._last_frame_seen.items() if visto <= limite]:
+            del self._last_frame_seen[track_id]
+            self._frames_seen.pop(track_id, None)
+            self._epi_ativo.pop(track_id, None)
+
+    def _expirar_janela_de_merge(self, now: datetime) -> None:
+        """Esquece fechamentos cuja janela de merge ja passou.
+
+        So servem para reabrir o mesmo episodio dentro da janela; depois
+        dela, _open_or_merge nunca mais os consulta, e sem esta limpeza
+        _merged/_last_close cresciam um item por incidente, para sempre.
+        """
+        janela = self.config.merge_window_seconds
+        for key in [k for k, fechado_em in self._last_close.items()
+                    if (now - fechado_em).total_seconds() > janela]:
+            del self._last_close[key]
+            self._merged.pop(key, None)

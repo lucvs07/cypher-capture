@@ -54,7 +54,8 @@ def prompt_zone_metadata(polygon: list[tuple[int, int]]) -> Zone:
     zone_type = raw_type if raw_type in ("restricted", "attention") else "restricted"
     raw_sev = input("  Severity 1–4 [3]: ").strip()
     severity = int(raw_sev) if raw_sev.isdigit() and 1 <= int(raw_sev) <= 4 else 3
-    ppe_raw = input("  Required PPE (comma-separated, or blank): ").strip()
+    ppe_raw = input("  Required PPE — HELMET, GOGGLES, GLOVE, VEST, BOOTS, MASK "
+                    "(comma-separated, or blank): ").strip()
     ppe = [p.strip() for p in ppe_raw.split(",") if p.strip()] if ppe_raw else []
     return Zone.new(
         name=name,
