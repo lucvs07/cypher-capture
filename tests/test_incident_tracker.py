@@ -25,6 +25,7 @@ import pytest
 from src.fusion.engine import PersonEvent
 from src.notify.incident import ClosedReason
 from src.notify.tracker import IncidentTracker, TrackerConfig
+from src.pose.epi_catalog import EpiTipo
 
 BRT = timezone(timedelta(hours=-3))
 T0 = datetime(2026, 8, 10, 14, 0, 0, tzinfo=BRT)
@@ -339,7 +340,7 @@ def test_flush_fecha_o_que_restou_aberto():
     assert coletor.fechados[0].duration_seconds == pytest.approx(4.0)
 
 
-def evento_epi(person_id: int, epi_violations: list[str], severidade: int = 2) -> PersonEvent:
+def evento_epi(person_id: int, epi_violations: list[EpiTipo], severidade: int = 2) -> PersonEvent:
     """Postura normal, fora de zona — o unico motivo de alerta e o EPI."""
     return PersonEvent(
         person_id=person_id,
@@ -360,16 +361,41 @@ class TestEpiComoEixoIndependenteDaPostura:
         tracker, coletor = montar()
         aquecer(tracker, 1, 20, T0)
 
-        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+        tracker.process([evento_epi(1, [EpiTipo.HELMET])], T0)
 
         assert len(coletor.abertos) == 1
         assert coletor.abertos[0].type == "EPI_VIOLATION"
-        assert coletor.abertos[0].epi_missing == ["no_helmet"]
+        assert coletor.abertos[0].epi_missing == ["HELMET"]
+
+    def test_track_que_ja_entra_sem_epi_abre_incidente_quando_passa_do_guard(self):
+        """Achado 2026-09-22: a flag de EPI virava True no primeiro frame,
+        enquanto min_track_frames ainda barrava a abertura, e o incidente
+        nunca abria — 0 incidentes em 40 frames sem capacete."""
+        tracker, coletor = montar(min_track_frames=15)
+
+        for i in range(40):
+            tracker.process([evento_epi(1, [EpiTipo.HELMET])],
+                            T0 + timedelta(seconds=i * 0.1))
+
+        assert len(coletor.abertos) == 1
+        assert coletor.abertos[0].type == "EPI_VIOLATION"
+        assert coletor.abertos[0].detected_at == T0 + timedelta(seconds=1.4)
+
+    def test_epi_abaixo_do_limiar_abre_quando_a_severidade_sobe(self):
+        tracker, coletor = montar(min_severity=3)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento_epi(1, [EpiTipo.HELMET], severidade=2)], T0)
+        assert coletor.abertos == []
+
+        tracker.process([evento_epi(1, [EpiTipo.HELMET], severidade=3)],
+                        T0 + timedelta(seconds=1))
+
+        assert len(coletor.abertos) == 1
 
     def test_epi_deixa_de_faltar_fecha_o_incidente(self):
         tracker, coletor = montar()
         aquecer(tracker, 1, 20, T0)
-        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+        tracker.process([evento_epi(1, [EpiTipo.HELMET])], T0)
 
         tracker.process([evento_epi(1, [])], T0 + timedelta(seconds=1))
 
@@ -382,7 +408,7 @@ class TestEpiComoEixoIndependenteDaPostura:
 
         evento_combinado = PersonEvent(
             person_id=1, posture="immediate_risk", previous_posture="normal",
-            severity=4, reason="fallen_sustained", epi_violations=["no_helmet"],
+            severity=4, reason="fallen_sustained", epi_violations=[EpiTipo.HELMET],
         )
         tracker.process([evento_combinado], T0)
 
@@ -392,9 +418,9 @@ class TestEpiComoEixoIndependenteDaPostura:
     def test_epi_continuo_sem_renotify_configurado_atualiza_pico_sem_reabrir(self):
         tracker, coletor = montar()  # renotify_after_seconds=None por padrao no teste
         aquecer(tracker, 1, 20, T0)
-        tracker.process([evento_epi(1, ["no_helmet"], severidade=2)], T0)
+        tracker.process([evento_epi(1, [EpiTipo.HELMET], severidade=2)], T0)
 
-        tracker.process([evento_epi(1, ["no_helmet"], severidade=3)],
+        tracker.process([evento_epi(1, [EpiTipo.HELMET], severidade=3)],
                          T0 + timedelta(minutes=10))
 
         assert len(coletor.abertos) == 1
@@ -410,9 +436,9 @@ class TestRenotificacao:
     def test_violacao_persistente_alem_do_limite_fecha_e_reabre(self):
         tracker, coletor = montar(renotify_after_seconds=60.0)
         aquecer(tracker, 1, 20, T0)
-        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+        tracker.process([evento_epi(1, [EpiTipo.HELMET])], T0)
 
-        tracker.process([evento_epi(1, ["no_helmet"])], T0 + timedelta(seconds=61))
+        tracker.process([evento_epi(1, [EpiTipo.HELMET])], T0 + timedelta(seconds=61))
 
         assert len(coletor.abertos) == 2
         assert len(coletor.fechados) == 1
@@ -422,9 +448,9 @@ class TestRenotificacao:
     def test_violacao_persistente_antes_do_limite_nao_reabre(self):
         tracker, coletor = montar(renotify_after_seconds=60.0)
         aquecer(tracker, 1, 20, T0)
-        tracker.process([evento_epi(1, ["no_helmet"])], T0)
+        tracker.process([evento_epi(1, [EpiTipo.HELMET])], T0)
 
-        tracker.process([evento_epi(1, ["no_helmet"])], T0 + timedelta(seconds=30))
+        tracker.process([evento_epi(1, [EpiTipo.HELMET])], T0 + timedelta(seconds=30))
 
         assert len(coletor.abertos) == 1
         assert len(coletor.fechados) == 0

@@ -107,13 +107,13 @@ Necessário só se você quiser que a Fase 1 envie os frames de violação. Copi
 
 | Modelo | Arquivo | Tarefa | Observações |
 |---|---|---|---|
-| Detector de EPI | `models/exp.pt` | detect | 7 classes: `GLOVE, Goggles, HELMET, MASK, Person, VEST, boots` |
+| Detector de EPI | `models/exp-m4-1709-v4.pt` (padrão; `exp.pt` e `exp-s3-1709.pt` têm as mesmas classes) | detect | 7 classes: `GLOVE, Goggles, HELMET, MASK, Person, VEST, boots` |
 | Estimador de pose | `yolo11s-pose.pt` | pose | baixado automaticamente; 17 keypoints COCO |
 
 Para um modelo de pose mais rápido ou mais preciso, troque em `config/pose_config.yaml → pipeline.pose_model_path`: `yolo11n-pose.pt` (mais rápido), `yolo11s-pose.pt` (padrão) ou `yolo11m-pose.pt` (mais preciso).
 
-> O modelo de EPI emite apenas classes de **presença** (não há classes `no_*` de violação). Por isso o pipeline unificado reporta os EPIs detectados, mas **não** levanta eventos de violação de EPI. Para inspecionar as classes de quaisquer pesos:
-> `python -c "from ultralytics import YOLO; print(YOLO('models/exp.pt').names)"`
+> O modelo de EPI emite apenas classes de **presença** (não há classes `no_*` de violação). EPI ausente é inferido pelo pipeline: um item exigido (pela zona ou pelo checklist da empresa) que fica sem detecção por `epi_confirm_seconds` seguidos numa pessoa rastreada vira violação (`src/pose/epi_absence.py`). Só os 6 EPIs que o modelo detecta existem no contrato com a API (`EpiTipo`: `HELMET, GOGGLES, GLOVE, VEST, BOOTS, MASK`); `tests/test_epi_catalog.py` falha se os pesos de `models/` mudarem de classes. Para inspecionar as classes de quaisquer pesos:
+> `python -c "from ultralytics import YOLO; print(YOLO('models/exp-m4-1709-v4.pt').names)"`
 
 ---
 

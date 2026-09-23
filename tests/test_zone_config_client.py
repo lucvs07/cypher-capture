@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+from src.pose.epi_catalog import EpiTipo
 from src.zones.config_client import ZoneConfigClient
 
 AGORA = datetime(2026, 8, 29, 12, 0, 0, tzinfo=timezone.utc)
@@ -23,7 +24,7 @@ CORPO_API = [
         "zoneType": "RESTRICTED",
         "polygon": [{"x": 0.25, "y": 0.25}, {"x": 0.75, "y": 0.25}, {"x": 0.75, "y": 0.75}],
         "severity": 4,
-        "requiredPpe": ["capacete"],
+        "requiredPpe": ["HELMET", "BOOTS"],
     },
 ]
 
@@ -88,7 +89,7 @@ def test_converte_normalizado_para_pixel_usando_a_resolucao_informada(tmp_path):
     assert z.zone_type == "restricted"
     assert z.polygon == [(320.0, 180.0), (960.0, 180.0), (960.0, 540.0)]
     assert z.severity == 4
-    assert z.required_ppe == ["capacete"]
+    assert z.required_ppe == [EpiTipo.HELMET, EpiTipo.BOOTS]
 
 
 def test_mesma_zona_normalizada_produz_poligono_diferente_em_outra_resolucao(tmp_path):
@@ -277,3 +278,15 @@ def test_zona_com_poligono_vazio_e_ignorada_mas_outras_seguem(tmp_path):
 
     assert len(zonas) == 1
     assert zonas[0].name == "Zona valida"
+
+
+def test_required_ppe_que_o_modelo_nao_detecta_e_descartado_com_aviso(tmp_path, caplog):
+    # A API ja valida requiredPpe como EpiTipo; isto cobre cache antigo ou
+    # zona gravada antes da validacao ("capacete", "auricular").
+    corpo = [{**CORPO_API[0], "requiredPpe": ["capacete", "VEST", None]}]
+
+    with caplog.at_level("WARNING"):
+        zonas = cliente(tmp_path, TransporteFake(corpo=corpo)).fetch("CAM-01", 1280, 720)
+
+    assert zonas[0].required_ppe == [EpiTipo.VEST]
+    assert "'capacete'" in caplog.text

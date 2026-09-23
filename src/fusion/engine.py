@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..pose.classifier import PostureCategory, PostureState
+from ..pose.epi_catalog import EpiTipo
 from ..pose.reba import REBAScore
 from ..zones.detector import ZoneResult, ZoneStatus
 
@@ -14,8 +15,8 @@ class PersonEvent:
     """Unified per-person event emitted each frame. Schema targets Phase 3 persistence."""
     timestamp: float = field(default_factory=time.time)
     person_id: int = 0
-    epi_violations: list[str] = field(default_factory=list)  # violation labels on this person (no_helmet, …)
-    epi_present: list[str] = field(default_factory=list)      # PPE detected on this person (HELMET, VEST, …)
+    epi_violations: list[EpiTipo] = field(default_factory=list)  # EPI exigido confirmado ausente
+    epi_present: list[EpiTipo] = field(default_factory=list)     # EPI detectado nesta pessoa
     posture: str = "normal"
     previous_posture: str = "normal"   # categoria confirmada no frame anterior
     reba_score: int = 1
@@ -47,8 +48,6 @@ def _containment(person: tuple, epi: tuple) -> float:
 class DecisionEngine:
     """Fuses posture, REBA, zone, and EPI information into a per-person event."""
 
-    EPI_VIOLATION_LABELS = {"no_gloves", "no_goggle", "no_helmet", "no_boots", "no_vest", "no_mask", "none"}
-
     @staticmethod
     def worst_zone(zone_results: list[ZoneResult]) -> Optional[ZoneResult]:
         """Zona mais severa para esta pessoa neste frame (inside > approaching,
@@ -65,8 +64,8 @@ class DecisionEngine:
         posture_state: PostureState,
         reba: REBAScore,
         zone_results: list[ZoneResult],
-        epi_labels: list[str],
-        epi_missing_confirmed: list[str] | None = None,
+        epi_present: list[EpiTipo],
+        epi_missing_confirmed: list[EpiTipo] | None = None,
     ) -> PersonEvent:
         event = PersonEvent(person_id=person_id)
         event.posture = posture_state.category.value
@@ -74,21 +73,11 @@ class DecisionEngine:
         event.reba_score = reba.final_score
         event.action_level = reba.action_level
 
-        # Duas fontes de violacao: labels explicitas do detector (nunca
-        # geradas hoje — o modelo so tem classes de presenca, ver
-        # epi_catalog.py) e a inferencia de ausencia por debounce
-        # (epi_missing_confirmed, achado 2026-09-20). Deduplicado, ordem
-        # preservada.
-        violations = [lbl for lbl in epi_labels if lbl in self.EPI_VIOLATION_LABELS]
-        violations.extend(epi_missing_confirmed or [])
-        event.epi_violations = list(dict.fromkeys(violations))
-        # PPE actually detected on the person (presence). "Person" is the EPI
-        # model's own person class, not equipment, so it is excluded. Deduped,
-        # order preserved.
-        event.epi_present = list(dict.fromkeys(
-            lbl for lbl in epi_labels
-            if lbl not in self.EPI_VIOLATION_LABELS and lbl != "Person"
-        ))
+        # O modelo so tem classes de presenca (ver epi_catalog.py): violacao
+        # e sempre a inferencia de ausencia por debounce (epi_absence.py,
+        # achado 2026-09-20). Deduplicado, ordem preservada.
+        event.epi_violations = list(dict.fromkeys(epi_missing_confirmed or []))
+        event.epi_present = list(dict.fromkeys(epi_present))
 
         # Zone: report worst (inside > approaching, higher severity wins)
         worst = self.worst_zone(zone_results)
@@ -119,16 +108,12 @@ class DecisionEngine:
             sev = max(sev, 3)
 
         # Taxonomy §4.2: being in/near a zone while missing a PPE the zone
-        # requires escalates severity by +1 (capped at 4). A required item is
-        # "missing" when the matching violation label (e.g. helmet → no_helmet)
-        # was associated to this person.
-        if worst is not None and worst.required_ppe and event.epi_violations:
-            missing = [
-                ppe for ppe in worst.required_ppe
-                if f"no_{ppe}" in event.epi_violations
-            ]
-            if missing:
-                sev = min(sev + 1, 4)
+        # requires escalates severity by +1 (capped at 4). required_ppe ja
+        # chega resolvido pra EpiTipo desde a carga da zona, entao e
+        # pertinencia direta — sem montar string (o f"no_{ppe}" antigo nunca
+        # batia com o nome canonico do cadastro).
+        if worst is not None and any(t in worst.required_ppe for t in event.epi_violations):
+            sev = min(sev + 1, 4)
 
         event.severity = sev
         return event
@@ -139,14 +124,21 @@ class DecisionEngine:
         epi_bboxes: list[tuple],
         epi_labels: list[str],
         containment_threshold: float = 0.5,
-    ) -> dict[int, list[str]]:
+    ) -> dict[int, list[EpiTipo]]:
         """
         Assign each EPI detection to the person whose bbox covers most of it.
         An EPI box is associated when at least containment_threshold of its
         area lies inside the person bbox; ties go to the highest coverage.
+
+        ``epi_labels`` sao os nomes crus do detector — unico ponto do fluxo
+        que os ve. Sai ``EpiTipo``; ``Person`` e classe desconhecida sao
+        descartadas aqui.
         """
-        result: dict[int, list[str]] = {pid: [] for pid in person_bboxes}
+        result: dict[int, list[EpiTipo]] = {pid: [] for pid in person_bboxes}
         for epi_box, label in zip(epi_bboxes, epi_labels):
+            tipo = EpiTipo.from_detector_label(label)
+            if tipo is None:
+                continue
             best_pid, best_cov = None, containment_threshold
             for pid, p_box in person_bboxes.items():
                 cov = _containment(p_box, epi_box)
@@ -154,5 +146,5 @@ class DecisionEngine:
                     best_cov = cov
                     best_pid = pid
             if best_pid is not None:
-                result[best_pid].append(label)
+                result[best_pid].append(tipo)
         return result
