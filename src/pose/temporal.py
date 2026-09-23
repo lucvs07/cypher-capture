@@ -93,6 +93,12 @@ class TemporalAnalyzer:
 
         return metrics
 
+    def forget(self, person_id: int) -> None:
+        """Libera o estado de um track que saiu de quadro de vez."""
+        self._com.pop(person_id, None)
+        self._trunk_angles.pop(person_id, None)
+        self._bad_posture_streak.pop(person_id, None)
+
     def get_history(self, person_id: int) -> dict:
         """Return raw buffers for time-series visualisation."""
         return {

@@ -132,6 +132,13 @@ class PostureClassifier:
         current.sustained_seconds = current.frames_in_state / self.fps
         return current
 
+    def forget(self, person_id: int) -> None:
+        """Libera o estado de um track que saiu de quadro de vez."""
+        self._states.pop(person_id, None)
+        self._pending.pop(person_id, None)
+        self._exit_counters.pop(person_id, None)
+        self._fall_pending_confirm.pop(person_id, None)
+
     def get_state(self, person_id: int) -> PostureState:
         return self._states.get(person_id, PostureState())
 

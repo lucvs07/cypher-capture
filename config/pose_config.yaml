@@ -18,6 +18,9 @@ pipeline:
   epi_stride_max: 4                  # EPI model will not skip more than this many frames
   pose_tracker_config: config/bytetrack_tuned.yaml  # achado 2026-09-20: default do Ultralytics troca de ID
                                       # a cada oclusao/blur breve (track_buffer=30, ~1.2s a 25 FPS)
+  forget_track_after_frames: 150      # frames sem ver um track ate liberar o estado por pessoa dele;
+                                      # precisa ser > track_buffer do ByteTrack (90), senao esquece quem
+                                      # so ficou ocluido e ainda volta com o mesmo id
 
 classifier:
   enter_frames: 5                    # consecutive matching frames to confirm a new state

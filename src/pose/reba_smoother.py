@@ -23,6 +23,11 @@ class RebaSmoother:
         self._history: dict[int, deque] = defaultdict(lambda: deque(maxlen=window))
         self._last_valid: dict[int, int] = {}
 
+    def forget(self, person_id: int) -> None:
+        """Libera o estado de um track que saiu de quadro de vez."""
+        self._history.pop(person_id, None)
+        self._last_valid.pop(person_id, None)
+
     def smooth(self, person_id: int, reba: REBAScore) -> int:
         """Mediana movel de final_score, pulando frames indeterminados.
         Sem nenhum frame valido ainda, devolve o proprio valor bruto."""
