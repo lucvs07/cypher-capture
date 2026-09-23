@@ -25842,41 +25842,7 @@
    "closed_reason": null
   },
   {
-   "frame": 329,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 3,
-   "peak_severity": 3,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "GLOVE",
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 335,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 3,
-   "peak_severity": 3,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "GLOVE",
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 352,
+   "frame": 577,
    "action": "close",
    "track": 1,
    "type": "ERGONOMIC_RISK",
@@ -25889,24 +25855,7 @@
    "closed_reason": "STATE_EXIT"
   },
   {
-   "frame": 464,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 3,
-   "peak_severity": 3,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "GLOVE",
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 469,
+   "frame": 694,
    "action": "close",
    "track": 1,
    "type": "EPI_VIOLATION",
@@ -25937,19 +25886,6 @@
   },
   {
    "frame": 723,
-   "action": "close",
-   "track": 1,
-   "type": "FALL_RISK",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "ESCALATED"
-  },
-  {
-   "frame": 723,
    "action": "open",
    "track": 1,
    "type": "ERGONOMIC_RISK",
@@ -25960,19 +25896,6 @@
    ],
    "epi_missing": [],
    "closed_reason": null
-  },
-  {
-   "frame": 830,
-   "action": "close",
-   "track": 1,
-   "type": "ERGONOMIC_RISK",
-   "severity": 2,
-   "peak_severity": 2,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "ESCALATED"
   },
   {
    "frame": 868,
@@ -25991,261 +25914,33 @@
    "closed_reason": null
   },
   {
-   "frame": 871,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 902,
-   "action": "close",
-   "track": 1,
-   "type": "FALL_RISK",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 919,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 928,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 953,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 955,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 962,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 1016,
-   "action": "close",
-   "track": 1,
-   "type": "FALL_RISK",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "ESCALATED"
-  },
-  {
-   "frame": 1065,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 1115,
-   "action": "close",
-   "track": 1,
-   "type": "ERGONOMIC_RISK",
-   "severity": 2,
-   "peak_severity": 3,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 1126,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 1200,
-   "action": "close",
-   "track": 1,
-   "type": "ERGONOMIC_RISK",
-   "severity": 2,
-   "peak_severity": 3,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "ESCALATED"
-  },
-  {
-   "frame": 1228,
-   "action": "close",
-   "track": 1,
-   "type": "FALL_RISK",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 1406,
-   "action": "close",
-   "track": 1,
-   "type": "ERGONOMIC_RISK",
-   "severity": 2,
-   "peak_severity": 3,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 1423,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
-   "frame": 1443,
-   "action": "close",
-   "track": 1,
-   "type": "EPI_VIOLATION",
-   "severity": 4,
-   "peak_severity": 4,
-   "epi_present": [
-    "BOOTS"
-   ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
-   "closed_reason": "STATE_EXIT"
-  },
-  {
    "frame": 1453,
    "action": "close",
    "track": 1,
-   "type": "EPI_VIOLATION",
+   "type": "FALL_RISK",
    "severity": 4,
    "peak_severity": 4,
    "epi_present": [
     "BOOTS"
    ],
-   "epi_missing": [
-    "HELMET",
-    "VEST"
-   ],
+   "epi_missing": [],
    "closed_reason": "STATE_EXIT"
   },
   {
-   "frame": 1456,
+   "frame": 1548,
+   "action": "close",
+   "track": 1,
+   "type": "ERGONOMIC_RISK",
+   "severity": 2,
+   "peak_severity": 3,
+   "epi_present": [
+    "BOOTS"
+   ],
+   "epi_missing": [],
+   "closed_reason": "STATE_EXIT"
+  },
+  {
+   "frame": 1548,
    "action": "close",
    "track": 1,
    "type": "EPI_VIOLATION",
