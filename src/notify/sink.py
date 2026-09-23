@@ -28,10 +28,12 @@ class RejeitadoPeloBackend(Exception):
     """O backend recusou o payload de vez (4xx que nao se resolve sozinho).
 
     Retentar nao adianta: o mesmo payload vai ser recusado de novo nesta
-    execucao, no spill e em todo boot seguinte. 401/403 (chave errada ou
-    rotacionada), 408 e 429 ficam de fora de proposito — esses se resolvem
-    com o tempo ou com correcao de configuracao, e o caminho normal de
-    retry + spill e o certo pra eles.
+    execucao, no spill e em todo boot seguinte. So os status de
+    _STATUS_DEFINITIVOS contam; qualquer outro erro segue o caminho normal
+    de retry + spill. 404 fica de fora de proposito: um PATCH de fechamento
+    que chega antes da abertura (que ficou no spill) volta 404 e se resolve
+    quando a abertura for drenada, e uma api_url errada da 404 em tudo e se
+    resolve com correcao de configuracao, como 401/403.
     """
 
     def __init__(self, status: int, corpo: str = "") -> None:
@@ -40,11 +42,13 @@ class RejeitadoPeloBackend(Exception):
         super().__init__(f"HTTP {status}: {corpo}")
 
 
-_STATUS_RETENTAVEIS = {401, 403, 408, 429}
+# Lista explicita em vez de "todo 4xx menos alguns": um status novo ou
+# inesperado cai no retry, que no pior caso so custa tentativas.
+_STATUS_DEFINITIVOS = {400, 409, 410, 413, 422}
 
 
 def _checar_resposta(resposta) -> None:
-    if 400 <= resposta.status_code < 500 and resposta.status_code not in _STATUS_RETENTAVEIS:
+    if resposta.status_code in _STATUS_DEFINITIVOS:
         raise RejeitadoPeloBackend(resposta.status_code, resposta.text[:500])
     resposta.raise_for_status()
 
@@ -316,8 +320,9 @@ class HttpIncidentSink:
                         headers=self._headers)
                 return
             except RejeitadoPeloBackend as rejeicao:
-                log.error("Incidente %s (%s) recusado pelo backend, nao sera retentado: %s",
-                          item.incident_key, item.kind, rejeicao)
+                log.error("Incidente %s (%s) recusado pelo backend, nao sera retentado "
+                          "(gravado em %s): %s",
+                          item.incident_key, item.kind, self.rejected_path, rejeicao)
                 self._gravar_rejeitado(item, rejeicao)
                 return
             except Exception as falha:

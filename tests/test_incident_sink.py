@@ -439,14 +439,21 @@ class RespostaFake:
             raise ConnectionError(f"HTTP {self.status_code}")
 
 
-@pytest.mark.parametrize("status", [400, 404, 409, 422])
+@pytest.mark.parametrize("status", [400, 409, 410, 413, 422])
 def test_4xx_definitivo_vira_rejeicao(status):
     with pytest.raises(RejeitadoPeloBackend) as erro:
         _checar_resposta(RespostaFake(status, "detalhe"))
     assert erro.value.status == status
+    assert erro.value.corpo == "detalhe"
 
 
-@pytest.mark.parametrize("status", [401, 403, 408, 429, 500, 503])
+def test_rejeicao_guarda_so_o_comeco_da_resposta():
+    with pytest.raises(RejeitadoPeloBackend) as erro:
+        _checar_resposta(RespostaFake(400, "x" * 2000))
+    assert erro.value.corpo == "x" * 500
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 408, 418, 429, 500, 503])
 def test_status_que_se_resolve_com_o_tempo_continua_retentavel(status):
     with pytest.raises(Exception) as erro:
         _checar_resposta(RespostaFake(status))
@@ -455,3 +462,42 @@ def test_status_que_se_resolve_com_o_tempo_continua_retentavel(status):
 
 def test_2xx_passa():
     _checar_resposta(RespostaFake(201))
+
+
+class TransportePatch404:
+    """Backend que ainda nao conhece a chave: o PATCH volta 404 por
+    _checar_resposta, como o RequestsTransport faria."""
+
+    def __init__(self) -> None:
+        self.patches = 0
+
+    def post(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
+        raise AssertionError("nao deveria abrir nada")
+
+    def patch(self, url: str, payload: dict, headers: Optional[dict] = None) -> None:
+        self.patches += 1
+        _checar_resposta(RespostaFake(404, "incidente nao encontrado"))
+
+
+def test_fechamento_com_404_vai_pro_spill_e_nao_pros_rejeitados(tmp_path):
+    """Com a abertura presa no spill (backend fora), o fechamento chega antes
+    dela e volta 404. Se fosse rejeitado de vez, no boot seguinte a abertura
+    seria drenada sem fechamento e o incidente ficaria aberto pra sempre.
+    Indo pro spill, depois da abertura, os dois saem na ordem certa."""
+    spill = tmp_path / "incidents.jsonl"
+    rejeitados = tmp_path / "incidents.rejected.jsonl"
+    transporte = TransportePatch404()
+    sink = HttpIncidentSink("http://api/api/v1", transport=transporte,
+                            spill_path=str(spill), max_attempts=2,
+                            backoff_base=0.01)
+    sink.start()
+    try:
+        sink.close(relatorio("k1"))
+    finally:
+        sink.stop()
+
+    assert transporte.patches >= 1
+    assert not rejeitados.exists()
+    linhas = [json.loads(l) for l in spill.read_text().splitlines() if l.strip()]
+    assert [l["kind"] for l in linhas] == ["close"]
+    assert linhas[0]["incident_key"] == "k1"
