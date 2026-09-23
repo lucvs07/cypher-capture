@@ -25,6 +25,11 @@ from .incident import (
     build_incident_key,
 )
 
+# Contrato do on_open: o handler precisa pegar snapshot_frame antes de
+# retornar (copiar, codificar ou guardar a referencia num item proprio, como o
+# HttpIncidentSink faz). Logo depois o tracker zera o campo no relatorio para
+# nao prender uma imagem por incidente; um handler que enfileirasse o proprio
+# relatorio e lesse o frame depois, num worker, receberia None.
 Handler = Callable[[IncidentReport], None]
 
 # Chave de um episódio em curso: o par (track, tipo). O mesmo track pode ter
@@ -87,6 +92,7 @@ class IncidentTracker:
             self._handle(event, now)
 
         self._evict_lost_tracks(now)
+        self._expirar_janela_de_merge(now)
 
     def flush(self, now: datetime) -> None:
         """Fecha tudo o que restou aberto. Chamado no encerramento do pipeline.
@@ -226,7 +232,14 @@ class IncidentTracker:
             snapshot_frame=self._frame_atual,
         )
         self._open[key] = relatorio
-        self._on_open(relatorio)
+        try:
+            self._on_open(relatorio)
+        finally:
+            # O sink ja pegou a referencia do frame em on_open (sincrono, ver o
+            # contrato em Handler). Manter aqui prendia uma imagem inteira por
+            # incidente enquanto o relatorio vivesse em _open/_merged — GBs
+            # num processo que roda por dias.
+            relatorio.snapshot_frame = None
 
     def _close(self, key: IncidentKey, now: datetime, motivo: str) -> None:
         relatorio = self._open.pop(key, None)
@@ -251,3 +264,23 @@ class IncidentTracker:
             track_id, _ = key
             if self._last_frame_seen.get(track_id, 0) <= limite:
                 self._close(key, now, ClosedReason.TRACK_LOST)
+
+        # Estado por track: o ByteTrack da id novo a cada pessoa que entra no
+        # quadro, entao sem isto os dicionarios so crescem ao longo da execucao.
+        for track_id in [t for t, visto in self._last_frame_seen.items() if visto <= limite]:
+            del self._last_frame_seen[track_id]
+            self._frames_seen.pop(track_id, None)
+            self._epi_ativo.pop(track_id, None)
+
+    def _expirar_janela_de_merge(self, now: datetime) -> None:
+        """Esquece fechamentos cuja janela de merge ja passou.
+
+        So servem para reabrir o mesmo episodio dentro da janela; depois
+        dela, _open_or_merge nunca mais os consulta, e sem esta limpeza
+        _merged/_last_close cresciam um item por incidente, para sempre.
+        """
+        janela = self.config.merge_window_seconds
+        for key in [k for k, fechado_em in self._last_close.items()
+                    if (now - fechado_em).total_seconds() > janela]:
+            del self._last_close[key]
+            self._merged.pop(key, None)

@@ -476,3 +476,98 @@ class TestRenotificacao:
 
         assert len(coletor.abertos) == 1
         assert len(coletor.fechados) == 0
+
+
+class TestLiberaMemoria:
+    """Achado 2026-09-22: cada incidente fechado ficava em _merged com o frame
+    inteiro do snapshot, para sempre — num processo que roda por dias, GBs."""
+
+    def test_relatorio_nao_segura_o_frame_depois_de_entregar_ao_sink(self):
+        entregues = []
+        config = TrackerConfig(camera_id="CAM-01", run_id="run-t")
+        tracker = IncidentTracker(config,
+                                  lambda r: entregues.append(r.snapshot_frame),
+                                  lambda r: None)
+        aquecer(tracker, 1, 20, T0)
+
+        frame = object()
+        tracker.process([evento(1, "immediate_risk", "normal")], T0, frame=frame)
+
+        assert entregues == [frame]                  # o sink recebeu o frame
+        (relatorio,) = tracker.open_incidents().values()
+        assert relatorio.snapshot_frame is None      # o tracker nao segura mais
+
+    def test_fechamento_e_esquecido_depois_da_janela_de_merge(self):
+        tracker, _ = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+        assert tracker._merged
+
+        tracker.process([evento(1, "normal", "normal", severidade=0)],
+                        T0 + timedelta(seconds=30))
+
+        assert tracker._merged == {}
+        assert tracker._last_close == {}
+
+    def test_depois_da_janela_a_mesma_violacao_abre_incidente_novo(self):
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+
+        tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=30))
+
+        assert len(coletor.abertos) == 2
+        assert coletor.abertos[0].incident_key != coletor.abertos[1].incident_key
+
+    def test_reabre_quando_volta_exatamente_no_limite_da_janela(self):
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+
+        tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=18))
+
+        assert len(coletor.abertos) == 1
+
+    def test_frame_e_liberado_mesmo_se_o_sink_falhar(self):
+        def sink_que_falha(relatorio):
+            raise RuntimeError("sink quebrou")
+
+        config = TrackerConfig(camera_id="CAM-01", run_id="run-t")
+        tracker = IncidentTracker(config, sink_que_falha, lambda r: None)
+        aquecer(tracker, 1, 20, T0)
+
+        with pytest.raises(RuntimeError):
+            tracker.process([evento(1, "immediate_risk", "normal")], T0, frame=object())
+
+        (relatorio,) = tracker.open_incidents().values()
+        assert relatorio.snapshot_frame is None
+
+    def test_fechamento_dentro_da_janela_continua_disponivel_para_reabrir(self):
+        tracker, coletor = montar(merge_window_seconds=15.0)
+        aquecer(tracker, 1, 20, T0)
+        tracker.process([evento(1, "immediate_risk", "normal")], T0)
+        tracker.process([evento(1, "normal", "immediate_risk", severidade=0)],
+                        T0 + timedelta(seconds=3))
+        tracker.process([evento(1, "normal", "normal", severidade=0)],
+                        T0 + timedelta(seconds=10))
+
+        tracker.process([evento(1, "immediate_risk", "normal")], T0 + timedelta(seconds=12))
+
+        assert len(coletor.abertos) == 1
+
+    def test_estado_de_track_sumido_e_liberado(self):
+        tracker, _ = montar(evict_after_frames=5)
+        aquecer(tracker, 1, 20, T0)
+        for _ in range(10):
+            tracker.process([evento(2, "normal", "normal", severidade=0)], T0)
+
+        assert 1 not in tracker._frames_seen
+        assert 1 not in tracker._last_frame_seen
+        assert 1 not in tracker._epi_ativo
+        assert 2 in tracker._frames_seen
