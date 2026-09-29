@@ -338,19 +338,36 @@ cp outputs/runs/ppe_train/weights/best.pt models/exp.pt
 
 ---
 
-## Vídeo de demonstração
+## 🎬 Vídeos do pitch final (Fase 4)
+
+Gravados em 29/09/2026 com os 3 projetos rodando sobre a empresa `demo`, na ordem do roteiro do pitch. O feed ao vivo é o `run_pipeline.py` rodando sobre os vídeos de `data/validation/`, no lugar das câmeras RTSP da fábrica.
+
+### Demonstração ao vivo · 60s
+
+Backup do slide 12. Na ordem da narração: detecção, decisão (histerese e zona), alerta chegando no kiosk do operador e no dashboard do gestor, e análise por IA.
+
+https://github.com/user-attachments/assets/1eafada7-b96e-4b8e-9615-0f337889741e
+
+### Tour pelas telas · 1min45
+
+Login por papel, dashboard em tempo real, ao vivo por setor, heatmap, incidentes, placar, EPIs por operação, editor de zonas de risco e servidor MCP.
+
+https://github.com/user-attachments/assets/d2439482-547c-42e5-b491-f5240e6f2619
+
+### Apresentação completa · 2min45
+
+O tour seguido da demonstração ao vivo, em um arquivo só.
+
+https://github.com/user-attachments/assets/ad56a7dd-3999-4b73-a855-ad9485288213
+
+> Os vídeos não têm áudio. Arquivos originais e como foram gravados: [`docs/apresentacao/videos`](https://github.com/Ronaldovels/cypher-front/tree/main/docs/apresentacao/videos).
+
+## Vídeo de demonstração (Sprint 3)
 
 https://github.com/user-attachments/assets/da582c0c-9bc6-4ca3-9de6-844e875141b9
 
-Vídeo único, centralizado no repositório principal ([`cypher-front`](https://github.com/Ronaldovels/cypher-front#-vídeo-de-demonstração)), navegando pelas principais telas do sistema com os 3 projetos rodando localmente (dado real da empresa `demo`).
+Vídeo único, centralizado no repositório principal ([`cypher-front`](https://github.com/Ronaldovels/cypher-front#-vídeo-de-demonstração-sprint-3)), navegando pelas principais telas do sistema com os 3 projetos rodando localmente (dado real da empresa `demo`).
 
-### Vídeos do pitch final (Fase 4)
-
-Também centralizados no [`cypher-front`](https://github.com/Ronaldovels/cypher-front/tree/main/docs/apresentacao/videos), gravados com o sistema rodando — o feed ao vivo é o `run_pipeline.py` rodando sobre os vídeos de `data/validation/` (girados para 1920x1080) no lugar das câmeras RTSP:
-
-- [Demonstração ao vivo — 60s](https://github.com/Ronaldovels/cypher-front/blob/main/docs/apresentacao/videos/pitch-final-demo-ao-vivo.mp4): backup do slide 12, com detecção → decisão → alerta nas duas telas → análise por IA.
-- [Tour pelas telas — 1min45](https://github.com/Ronaldovels/cypher-front/blob/main/docs/apresentacao/videos/pitch-final-tour-telas.mp4): login, dashboard, ao vivo, heatmap, incidentes, placar, EPIs, zonas de risco e MCP.
-- [Completo — 2min45](https://github.com/Ronaldovels/cypher-front/blob/main/docs/apresentacao/videos/pitch-final-completo.mp4): tour seguido da demonstração ao vivo.
 
 ## Gestão ágil (Sprint 3)
 
