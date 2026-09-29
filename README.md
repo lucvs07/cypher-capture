@@ -350,6 +350,7 @@ Também centralizados no [`cypher-front`](https://github.com/Ronaldovels/cypher-
 
 - [Demonstração ao vivo — 60s](https://github.com/Ronaldovels/cypher-front/blob/main/docs/apresentacao/videos/pitch-final-demo-ao-vivo.mp4): backup do slide 12, com detecção → decisão → alerta nas duas telas → análise por IA.
 - [Tour pelas telas — 1min45](https://github.com/Ronaldovels/cypher-front/blob/main/docs/apresentacao/videos/pitch-final-tour-telas.mp4): login, dashboard, ao vivo, heatmap, incidentes, placar, EPIs, zonas de risco e MCP.
+- [Completo — 2min45](https://github.com/Ronaldovels/cypher-front/blob/main/docs/apresentacao/videos/pitch-final-completo.mp4): tour seguido da demonstração ao vivo.
 
 ## Gestão ágil (Sprint 3)
 
