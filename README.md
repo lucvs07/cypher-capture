@@ -366,6 +366,8 @@ cp outputs/runs/ppe_train/weights/best.pt models/exp.pt
 
 ## 🎬 Vídeos do pitch final (Fase 4)
 
+**Vídeo de pitch final narrado pelo grupo:** [https://youtu.be/RNXN9POxUuM](https://youtu.be/RNXN9POxUuM)
+
 Gravados em 29/09/2026 com os 3 projetos rodando sobre a empresa `demo`, na ordem do roteiro do pitch. O feed ao vivo é o `run_pipeline.py` rodando sobre os vídeos de `data/validation/`, no lugar das câmeras RTSP da fábrica.
 
 ### Demonstração ao vivo · 60s
