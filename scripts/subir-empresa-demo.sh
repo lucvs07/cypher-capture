@@ -9,21 +9,28 @@
 # caminhos configurados abaixo (padrão: layout usado neste projeto).
 #
 # Uso:
-#   ./scripts/subir-empresa-demo.sh start   [--no-seed] [--orchestrator] [--device cuda|cpu]
+#   ./scripts/subir-empresa-demo.sh start   [--no-seed] [--orchestrator] [--device cuda|cpu] [--source <video|índice>]
 #   ./scripts/subir-empresa-demo.sh status
 #   ./scripts/subir-empresa-demo.sh stop
 #   ./scripts/subir-empresa-demo.sh logs [backend|front|capture]
 #
 # "start" sobe backend → (semeia empresa demo, se ainda não tiver rodado) →
-# front → um pipeline de captura na webcam local (CAM-WEBCAM, ver
-# empresa-demo-runbook.md §4) ou, com --orchestrator, o orquestrador de
+# front → um pipeline de captura (CAM-WEBCAM, ver empresa-demo-runbook.md §4)
+# lendo, por ordem: --source, a webcam local (se existir) ou o vídeo de
+# demonstração versionado em cypher-capture/data/demo/. Com --orchestrator,
+# sobe o orquestrador de
 # processos (reconcilia todo o catálogo, inclusive as câmeras RTSP reais —
 # exige CYPHER_RTSP_USER/CYPHER_RTSP_PASS num .env do cypher-capture).
 #
+# Onde estão os repositórios: por padrão, as pastas vizinhas da que contém este
+# script (clone os 3 lado a lado: cypher-front, cypher-capture e o backend, que
+# pode se chamar cypher, Cypher-Api ou cypher-api). Só é preciso configurar as
+# variáveis abaixo se você clonou em outro layout.
+#
 # Variáveis de ambiente (todas opcionais, com default):
-#   CYPHER_BACKEND_DIR   default: $HOME/projects/cypher
-#   CYPHER_FRONT_DIR     default: $HOME/projects/challenge/cypher-front
-#   CYPHER_CAPTURE_DIR   default: $HOME/projects/challenge/cypher-capture
+#   CYPHER_BACKEND_DIR   default: pasta vizinha cypher | Cypher-Api | cypher-api
+#   CYPHER_FRONT_DIR     default: pasta vizinha cypher-front
+#   CYPHER_CAPTURE_DIR   default: pasta vizinha cypher-capture
 #   CYPHER_DEMO_GESTOR_PASSWORD    default: demo12345
 #   CYPHER_DEMO_OPERADOR_PASSWORD  default: operador123
 #   CYPHER_API_URL        default: http://localhost:8080/api/v1
@@ -32,9 +39,21 @@
 
 set -uo pipefail
 
-BACKEND_DIR="${CYPHER_BACKEND_DIR:-$HOME/projects/cypher}"
-FRONT_DIR="${CYPHER_FRONT_DIR:-$HOME/projects/challenge/cypher-front}"
-CAPTURE_DIR="${CYPHER_CAPTURE_DIR:-$HOME/projects/challenge/cypher-capture}"
+# Os 3 repositórios ficam lado a lado; este script está em <repo>/scripts/.
+PARENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+first_dir() {
+  # imprime o primeiro diretório existente entre os candidatos
+  local d
+  for d in "$@"; do
+    if [ -d "$d" ]; then echo "$d"; return 0; fi
+  done
+  echo "$1"
+}
+
+BACKEND_DIR="${CYPHER_BACKEND_DIR:-$(first_dir "$PARENT_DIR/cypher" "$PARENT_DIR/Cypher-Api" "$PARENT_DIR/cypher-api")}"
+FRONT_DIR="${CYPHER_FRONT_DIR:-$PARENT_DIR/cypher-front}"
+CAPTURE_DIR="${CYPHER_CAPTURE_DIR:-$PARENT_DIR/cypher-capture}"
 
 API_URL="${CYPHER_API_URL:-http://localhost:8080/api/v1}"
 GESTOR_PASSWORD="${CYPHER_DEMO_GESTOR_PASSWORD:-demo12345}"
@@ -102,21 +121,46 @@ wait_for_health() {
 }
 
 cmd_start() {
-  local no_seed=0 use_orchestrator=0 no_capture=0 device="cuda"
+  local no_seed=0 use_orchestrator=0 no_capture=0 device="" source_arg=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --no-seed) no_seed=1 ;;
       --orchestrator) use_orchestrator=1 ;;
       --no-capture) no_capture=1 ;;
       --device) device="$2"; shift ;;
+      --source) source_arg="$2"; shift ;;
       *) die "flag desconhecida: $1" ;;
     esac
     shift
   done
 
-  [ -d "$BACKEND_DIR" ] || die "CYPHER_BACKEND_DIR inválido: $BACKEND_DIR"
-  [ -d "$FRONT_DIR" ] || die "CYPHER_FRONT_DIR inválido: $FRONT_DIR"
-  [ -d "$CAPTURE_DIR" ] || die "CYPHER_CAPTURE_DIR inválido: $CAPTURE_DIR"
+  [ -d "$BACKEND_DIR" ] || die "backend não encontrado em $BACKEND_DIR — clone ao lado deste repositório ou defina CYPHER_BACKEND_DIR"
+  [ -d "$FRONT_DIR" ] || die "front não encontrado em $FRONT_DIR — defina CYPHER_FRONT_DIR"
+  [ -d "$CAPTURE_DIR" ] || die "capture não encontrado em $CAPTURE_DIR — defina CYPHER_CAPTURE_DIR"
+
+  # Device: sem GPU NVIDIA, cai para CPU sozinho (mais lento, mas funciona).
+  if [ -z "$device" ]; then
+    if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+      device="cuda"
+    else
+      device="cpu"
+      log "GPU NVIDIA não detectada — usando --device cpu (a detecção roda em poucos FPS, é esperado)"
+    fi
+  fi
+
+  # Fonte de vídeo: --source > webcam (se existir) > vídeo de demonstração versionado.
+  if [ -z "$source_arg" ]; then
+    if ls /dev/video* >/dev/null 2>&1; then
+      source_arg="0"
+    else
+      source_arg="$CAPTURE_DIR/data/demo/cenario4-demo.mp4"
+      log "webcam não encontrada — usando o vídeo de demonstração $source_arg"
+    fi
+  fi
+
+  # Python do capture: venv do projeto se existir, senão o do sistema.
+  local py="./venv/bin/python"
+  [ -x "$CAPTURE_DIR/venv/bin/python" ] || py="python3"
 
   log "1/4 — backend ($BACKEND_DIR)"
   start_bg "$BACKEND_PID_FILE" "$BACKEND_LOG" "$BACKEND_DIR" ./mvnw spring-boot:run
@@ -142,12 +186,12 @@ cmd_start() {
   elif [ "$use_orchestrator" -eq 1 ]; then
     log "modo orquestrador — reconcilia todo o catálogo (precisa de .env com credenciais RTSP reais para as câmeras da meta indústria)"
     start_bg "$CAPTURE_PID_FILE" "$CAPTURE_LOG" "$CAPTURE_DIR" \
-      ./venv/bin/python -m src.orchestrator --api-url "$API_URL"
+      "$py" -m src.orchestrator --api-url "$API_URL"
   else
-    log "modo webcam única (CAM-WEBCAM, ver empresa-demo-runbook.md §4)"
+    log "modo câmera única CAM-WEBCAM, fonte: $source_arg (ver empresa-demo-runbook.md §4)"
     start_bg "$CAPTURE_PID_FILE" "$CAPTURE_LOG" "$CAPTURE_DIR" \
-      ./venv/bin/python src/run_pipeline.py \
-        --source 0 --device "$device" --no-display \
+      "$py" src/run_pipeline.py \
+        --source "$source_arg" --device "$device" --no-display \
         --camera-id CAM-WEBCAM --api-url "$API_URL"
   fi
 
