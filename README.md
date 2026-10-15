@@ -8,7 +8,7 @@ O projeto tem duas fases que compartilham a mesma base de código:
 - **Fase 2 — Pose e análise comportamental:** um pipeline unificado que roda estimação de pose (YOLO11-pose + ByteTrack) junto com a detecção de EPIs no mesmo laço, calcula ângulos articulares e um escore ergonômico **REBA** completo, classifica a postura em quatro categorias com histerese temporal e sinaliza a entrada/aproximação em zonas críticas demarcadas.
 - **Fase 3 — Integração com o backend:** `run_pipeline.py` reporta incidentes ao `cypher` (Spring Boot) via `X-Cypher-Key` por câmera, resolve fonte de vídeo e zonas críticas a partir do cadastro remoto de câmeras (com fallback em cascata para cache local e arquivo), faz hot-reload de zonas sem reiniciar o processo, envia heartbeat periódico para a gamificação (E5) e expõe o frame anotado como stream MJPEG. Um orquestrador (`src/orchestrator/`, `python -m src.orchestrator`) reconcilia o catálogo de câmeras do backend com os processos `run_pipeline.py` em execução no host — sobe, derruba e reinicia um processo por câmera automaticamente.
 
-Referências normativas: **NR-17** (ergonomia), **NR-35** (trabalho em altura) e **REBA** (Hignett & McAtamney, 2000). A taxonomia completa de posturas está em [docs/taxonomy.md](docs/taxonomy.md). A arquitetura dos três repositórios (`cypher-capture` → `cypher` → `cypher-front`) está documentada em [arquitetura.md do cypher-front](https://github.com/Ronaldovels/cypher-front/blob/dev/docs/arquitetura.md).
+Referências normativas: **NR-17** (ergonomia), **NR-35** (trabalho em altura) e **REBA** (Hignett & McAtamney, 2000). A taxonomia completa de posturas está em [docs/taxonomy.md](docs/taxonomy.md). A arquitetura dos três repositórios (`cypher-capture` → `cypher` → `cypher-front`) está documentada em [arquitetura.md do cypher-front](https://github.com/Ronaldovels/cypher-front/blob/main/docs/arquitetura.md).
 
 ---
 
@@ -145,7 +145,7 @@ python src/run_pipeline.py --source data/demo/cenario4-demo.mp4 --device cpu --n
 
 Este é o entry-point principal. Ele lê todos os parâmetros de `config/pose_config.yaml`.
 
-> Para subir os 3 projetos do sistema juntos (backend + front + este pipeline, com dado real da empresa `demo`), use `scripts/subir-empresa-demo.sh` (mesmo script, também presente em `cypher` e `cypher-front` — roda a partir de qualquer um dos três): `./scripts/subir-empresa-demo.sh start` / `status` / `logs` / `stop`. Detalhes: [`arquitetura.md`](https://github.com/Ronaldovels/cypher-front/blob/dev/docs/arquitetura.md) do `cypher-front`. As instruções abaixo são para rodar só este pipeline isoladamente.
+> Para subir os 3 projetos do sistema juntos (backend + front + este pipeline, com dado real da empresa `demo`), use `scripts/subir-empresa-demo.sh` (mesmo script, também presente em `cypher` e `cypher-front` — roda a partir de qualquer um dos três): `./scripts/subir-empresa-demo.sh start` / `status` / `logs` / `stop`. Detalhes: [`arquitetura.md`](https://github.com/Ronaldovels/cypher-front/blob/main/docs/arquitetura.md) do `cypher-front`. As instruções abaixo são para rodar só este pipeline isoladamente.
 
 ```bash
 # Webcam, com janela ao vivo (use cuda para cumprir a latência)
@@ -265,7 +265,7 @@ python -m src.orchestrator --api-url http://localhost:8080/api/v1 --max-concorre
 | `--state-path` | `outputs/orchestrator-state.json` | onde persiste o mapa `camera_id -> pid` |
 | `--log-dir` | `outputs/orchestrator-logs` | diretório de log por câmera |
 
-O orquestrador é **mono-tenant por instância**: rodar câmeras de mais de uma empresa no mesmo host exige um processo de orquestrador por empresa, cada um com sua própria conta `GESTOR` (decisão de arquitetura registrada em [arquitetura.md](https://github.com/Ronaldovels/cypher-front/blob/dev/docs/arquitetura.md) do `cypher-front`, não uma limitação pendente).
+O orquestrador é **mono-tenant por instância**: rodar câmeras de mais de uma empresa no mesmo host exige um processo de orquestrador por empresa, cada um com sua própria conta `GESTOR` (decisão de arquitetura registrada em [arquitetura.md](https://github.com/Ronaldovels/cypher-front/blob/main/docs/arquitetura.md) do `cypher-front`, não uma limitação pendente).
 
 ---
 
@@ -399,9 +399,9 @@ Vídeo único, centralizado no repositório principal ([`cypher-front`](https://
 
 - Board Trello: https://trello.com/b/AqgHhHCP/dev4-cypher-challenge
 - Protótipo Figma: https://www.figma.com/design/kyeXTO2Uw0lkm8DPK2a22v/Interface?node-id=48-2
-- Design system: https://github.com/Ronaldovels/cypher-front/blob/dev/docs/design-system.md
-- Arquitetura (3 repositórios): https://github.com/Ronaldovels/cypher-front/blob/dev/docs/arquitetura.md
-- Fluxo de telas: https://github.com/Ronaldovels/cypher-front/blob/dev/docs/fluxo-de-telas.md
+- Design system: https://github.com/Ronaldovels/cypher-front/blob/main/docs/design-system.md
+- Arquitetura (3 repositórios): https://github.com/Ronaldovels/cypher-front/blob/main/docs/arquitetura.md
+- Fluxo de telas: https://github.com/Ronaldovels/cypher-front/blob/main/docs/fluxo-de-telas.md
 - Repositório principal da entrega: https://github.com/Ronaldovels/cypher-front
 
 ---
