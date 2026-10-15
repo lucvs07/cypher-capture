@@ -58,7 +58,7 @@ cypher-capture/
 ### 1. Clonar e criar o ambiente virtual
 
 ```bash
-git clone git@github.com:lucvs07/cypher-capture.git
+git clone https://github.com/lucvs07/cypher-capture.git
 cd cypher-capture
 python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
@@ -73,9 +73,11 @@ A meta de latência (≤ 200 ms ponta a ponta) só é realista em **GPU**. Escol
 # GPU (NVIDIA, CUDA 12.x) — recomendado; necessário para cumprir o orçamento de latência
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
-# Somente CPU (funciona, mas o pipeline unificado estoura a latência)
+# Somente CPU (sem placa de vídeo: funciona, mas roda em poucos FPS e estoura o orçamento de 200 ms)
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
+
+Python 3.11 ou superior. Para só avaliar o sistema, a opção CPU basta.
 
 Confirme que a GPU está visível:
 
@@ -114,6 +116,28 @@ Para um modelo de pose mais rápido ou mais preciso, troque em `config/pose_conf
 
 > O modelo de EPI emite apenas classes de **presença** (não há classes `no_*` de violação). EPI ausente é inferido pelo pipeline: um item exigido (pela zona ou pelo checklist da empresa) que fica sem detecção por `epi_confirm_seconds` seguidos numa pessoa rastreada vira violação (`src/pose/epi_absence.py`). Só os 6 EPIs que o modelo detecta existem no contrato com a API (`EpiTipo`: `HELMET, GOGGLES, GLOVE, VEST, BOOTS, MASK`); `tests/test_epi_catalog.py` falha se os pesos de `models/` mudarem de classes. Para inspecionar as classes de quaisquer pesos:
 > `python -c "from ultralytics import YOLO; print(YOLO('models/exp-m4-1709-v4.pt').names)"`
+
+---
+
+## Rodar sem webcam, sem GPU e sem chave de LLM
+
+Dois vídeos de demonstração estão versionados em `data/demo/`, então quem clona consegue ver o pipeline funcionando sem câmera:
+
+| Vídeo | Conteúdo |
+|---|---|
+| `data/demo/validacao-camera-2026-10-14.mp4` | 2min07, gravado numa câmera IP, com integrantes do grupo usando EPI e em posturas variadas (em pé, agachado) |
+| `data/demo/cenario4-demo.mp4` | 52 s, o cenário 4 usado nas evidências da Sprint 4 (gera incidentes de EPI, ergonomia e queda) |
+
+```bash
+source venv/bin/activate
+python src/run_pipeline.py --source data/demo/cenario4-demo.mp4 --device cpu --no-display
+```
+
+- `--device cpu` funciona em qualquer máquina. Numa CPU de 2 núcleos o pipeline processa cerca de 6 quadros por segundo, ou seja, mais devagar que o vídeo. É esperado e não afeta a detecção. Os números medidos estão em [`docs/metricas-finais.md`](docs/metricas-finais.md).
+- Sem `--api-url`, os incidentes são só impressos no terminal (`[EVENT]`, `[INCIDENTE FECHADO]`). Para vê-los no painel, rode junto o backend e o front (ver o README do `cypher-front`, que traz o script `subir-empresa-demo.sh start` já usando esses vídeos).
+- Nenhuma chave de LLM é necessária aqui: a análise por IA é do backend e é opcional.
+- Os pesos de pose (`yolo11s-pose.pt`) são baixados na primeira execução, então ela precisa de internet uma vez. Os pesos do detector de EPI já vêm no repositório (`models/`).
+- Os vídeos de `data/validation/` não são versionados (gitignore); os de `data/demo/` são.
 
 ---
 
@@ -160,6 +184,8 @@ Medida sobre um clipe com ~4 pessoas, `yolo11s-pose` + `exp.pt`:
 |---|---|---|
 | CPU | ~362 ms | ❌ FALHA |
 | GPU (CUDA) | ~45 ms | ✅ PASSA |
+
+Medições mais recentes, com a fonte de cada número: [`docs/metricas-finais.md`](docs/metricas-finais.md).
 
 A conclusão prática é direta: **rode em GPU** (`--device cuda` ou `pipeline.device: cuda` no YAML).
 
@@ -369,7 +395,7 @@ https://github.com/user-attachments/assets/da582c0c-9bc6-4ca3-9de6-844e875141b9
 Vídeo único, centralizado no repositório principal ([`cypher-front`](https://github.com/Ronaldovels/cypher-front#-vídeo-de-demonstração-sprint-3)), navegando pelas principais telas do sistema com os 3 projetos rodando localmente (dado real da empresa `demo`).
 
 
-## Gestão ágil (Sprint 3)
+## Gestão ágil
 
 - Board Trello: https://trello.com/b/AqgHhHCP/dev4-cypher-challenge
 - Protótipo Figma: https://www.figma.com/design/kyeXTO2Uw0lkm8DPK2a22v/Interface?node-id=48-2

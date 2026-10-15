@@ -1,0 +1,34 @@
+{
+ "scenario": "cenario4",
+ "frames": 1548,
+ "latency_ms": {
+  "warmup": 2126.3,
+  "mean": 531.1,
+  "p50": 528.9,
+  "p95": 560.2
+ },
+ "severity_person_frames": {
+  "0": 991,
+  "2": 252,
+  "3": 344,
+  "4": 440
+ },
+ "summary_cpu": {
+  "frames": 1548,
+  "person_frames": 2027,
+  "with_epi_present": 1240,
+  "with_epi_missing": 368,
+  "escalated": 368,
+  "epi_incidents": 2
+ },
+ "summary_golden_cuda": {
+  "frames": 1548,
+  "person_frames": 2027,
+  "with_epi_present": 1240,
+  "with_epi_missing": 368,
+  "escalated": 368,
+  "epi_incidents": 2
+ }
+}
+incidentes: [('open', 'ERGONOMIC_RISK', 2, []), ('open', 'EPI_VIOLATION', 3, ['GLOVE', 'HELMET', 'VEST']), ('open', 'FALL_RISK', 4, []), ('close', 'ERGONOMIC_RISK', 2, []), ('close', 'EPI_VIOLATION', 3, ['GLOVE', 'HELMET', 'VEST']), ('open', 'FALL_RISK', 4, []), ('open', 'ERGONOMIC_RISK', 2, []), ('open', 'EPI_VIOLATION', 4, ['HELMET', 'VEST']), ('open', 'FALL_RISK', 4, []), ('close', 'FALL_RISK', 4, []), ('close', 'FALL_RISK', 4, []), ('close', 'FALL_RISK', 4, []), ('close', 'ERGONOMIC_RISK', 2, []), ('close', 'EPI_VIOLATION', 4, ['HELMET', 'VEST'])]
+wall_seconds=908

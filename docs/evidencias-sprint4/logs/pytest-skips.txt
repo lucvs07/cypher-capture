@@ -1,0 +1,8 @@
+tests/test_zone_config_client.py ..................                      [ 94%]
+tests/test_zone_detector.py .........                                    [ 96%]
+tests/test_zone_hot_reload.py .........                                  [ 98%]
+tests/test_zone_manager.py ......                                        [100%]
+
+=========================== short test summary info ============================
+SKIPPED [2] tests/test_epi_flow_golden.py:23: golden de EPI e opt-in: CYPHER_GOLDEN=1
+======================== 449 passed, 2 skipped in 7.32s ========================

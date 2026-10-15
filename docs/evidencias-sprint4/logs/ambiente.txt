@@ -1,0 +1,5 @@
+2026-09-25T18:57:21+00:00
+Python 3.11.15
+torch 2.14.0+cu130 ultralytics 8.4.163 opencv 4.13.0
+2
+Model name:                              Intel(R) Xeon(R) Processor @ 2.10GHz
