@@ -16,8 +16,8 @@
 #
 # "start" sobe backend → (semeia empresa demo, se ainda não tiver rodado) →
 # front → um pipeline de captura (CAM-WEBCAM, ver empresa-demo-runbook.md §4)
-# lendo, por ordem: --source, a webcam local (se existir) ou o vídeo de
-# demonstração versionado em cypher-capture/data/demo/. Com --orchestrator,
+# lendo --source (ex.: 0 para a webcam) ou, por padrão, o vídeo de demonstração
+# versionado em cypher-capture/data/demo/. Com --orchestrator,
 # sobe o orquestrador de
 # processos (reconcilia todo o catálogo, inclusive as câmeras RTSP reais —
 # exige CYPHER_RTSP_USER/CYPHER_RTSP_PASS num .env do cypher-capture).
@@ -139,29 +139,27 @@ cmd_start() {
   [ -d "$FRONT_DIR" ] || die "front não encontrado em $FRONT_DIR — defina CYPHER_FRONT_DIR"
   [ -d "$CAPTURE_DIR" ] || die "capture não encontrado em $CAPTURE_DIR — defina CYPHER_CAPTURE_DIR"
 
-  # Device: sem GPU NVIDIA, cai para CPU sozinho (mais lento, mas funciona).
-  if [ -z "$device" ]; then
-    if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
-      device="cuda"
-    else
-      device="cpu"
-      log "GPU NVIDIA não detectada — usando --device cpu (a detecção roda em poucos FPS, é esperado)"
-    fi
-  fi
-
-  # Fonte de vídeo: --source > webcam (se existir) > vídeo de demonstração versionado.
-  if [ -z "$source_arg" ]; then
-    if ls /dev/video* >/dev/null 2>&1; then
-      source_arg="0"
-    else
-      source_arg="$CAPTURE_DIR/data/demo/cenario4-demo.mp4"
-      log "webcam não encontrada — usando o vídeo de demonstração $source_arg"
-    fi
-  fi
-
   # Python do capture: venv do projeto se existir, senão o do sistema.
   local py="./venv/bin/python"
   [ -x "$CAPTURE_DIR/venv/bin/python" ] || py="python3"
+
+  # Device: usa CUDA só se o PyTorch instalado no venv enxergar a GPU; senão CPU
+  # (mais lento, mas funciona em qualquer máquina).
+  if [ -z "$device" ]; then
+    if (cd "$CAPTURE_DIR" && "$py" -c "import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)") >/dev/null 2>&1; then
+      device="cuda"
+    else
+      device="cpu"
+      log "GPU não disponível para o PyTorch — usando --device cpu (a detecção roda em poucos FPS, é esperado)"
+    fi
+  fi
+
+  # Fonte de vídeo: --source (ex.: 0 para a webcam) ou, por padrão, o vídeo de
+  # demonstração versionado — assim o resultado não depende de ter webcam.
+  if [ -z "$source_arg" ]; then
+    source_arg="$CAPTURE_DIR/data/demo/validacao-camera-2026-10-14.mp4"
+    log "fonte padrão: vídeo de demonstração (use --source 0 para a webcam)"
+  fi
 
   log "1/4 — backend ($BACKEND_DIR)"
   start_bg "$BACKEND_PID_FILE" "$BACKEND_LOG" "$BACKEND_DIR" ./mvnw spring-boot:run
