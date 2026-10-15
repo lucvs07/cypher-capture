@@ -31,6 +31,7 @@
 #   CYPHER_BACKEND_DIR   default: pasta vizinha cypher | Cypher-Api | cypher-api
 #   CYPHER_FRONT_DIR     default: pasta vizinha cypher-front
 #   CYPHER_CAPTURE_DIR   default: pasta vizinha cypher-capture
+#   CYPHER_RUN_DIR       default: $HOME/.cypher-demo (pids, logs e marcador do seed)
 #   CYPHER_DEMO_GESTOR_PASSWORD    default: demo12345
 #   CYPHER_DEMO_OPERADOR_PASSWORD  default: operador123
 #   CYPHER_API_URL        default: http://localhost:8080/api/v1
@@ -61,7 +62,7 @@ OPERADOR_PASSWORD="${CYPHER_DEMO_OPERADOR_PASSWORD:-operador123}"
 export CYPHER_GESTOR_USER="${CYPHER_GESTOR_USER:-gestor@demo}"
 export CYPHER_GESTOR_PASSWORD="${CYPHER_GESTOR_PASSWORD:-$GESTOR_PASSWORD}"
 
-RUN_DIR="$HOME/.cypher-demo"
+RUN_DIR="${CYPHER_RUN_DIR:-$HOME/.cypher-demo}"
 mkdir -p "$RUN_DIR"
 BACKEND_PID_FILE="$RUN_DIR/backend.pid"
 FRONT_PID_FILE="$RUN_DIR/front.pid"
