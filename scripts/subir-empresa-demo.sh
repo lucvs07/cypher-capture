@@ -22,6 +22,19 @@
 # processos (reconcilia todo o catálogo, inclusive as câmeras RTSP reais —
 # exige CYPHER_RTSP_USER/CYPHER_RTSP_PASS num .env do cypher-capture).
 #
+# LEMBRETE — .env do cypher-capture não é carregado automaticamente: nem
+# run_pipeline.py nem o orquestrador chamam load_dotenv() (só src/utils/upload.py
+# faz isso, e tarde demais pro uploader do Cloudinary ser escolhido). Variáveis
+# como CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET, CYPHER_RTSP_USER/PASS e
+# qualquer CYPHER_<CAMERA>_USER/PASS só chegam ao processo se já estiverem
+# exportadas no shell que roda este script — senão o pipeline sobe silencioso
+# (sem erro), mas sem subir foto nenhuma pro Cloudinary (snapshotUrl fica
+# sempre null) e/ou sem expandir a fonte RTSP. Antes de rodar, garanta:
+#   cd cypher-capture && set -a && source .env && set +a
+# (achado 2026-10-20, ao cadastrar a câmera CAM-TEATRO1/VIPC-1230-B-G2 do
+# ambiente simulado em teatro: 29 incidentes saíram com snapshotUrl null até
+# perceber que faltava isso.)
+#
 # Onde estão os repositórios: por padrão, as pastas vizinhas da que contém este
 # script (clone os 3 lado a lado: cypher-front, cypher-capture e o backend, que
 # pode se chamar cypher, Cypher-Api ou cypher-api). Só é preciso configurar as
