@@ -22,18 +22,24 @@
 # processos (reconcilia todo o catálogo, inclusive as câmeras RTSP reais —
 # exige CYPHER_RTSP_USER/CYPHER_RTSP_PASS num .env do cypher-capture).
 #
-# LEMBRETE — .env do cypher-capture não é carregado automaticamente: nem
-# run_pipeline.py nem o orquestrador chamam load_dotenv() (só src/utils/upload.py
-# faz isso, e tarde demais pro uploader do Cloudinary ser escolhido). Variáveis
-# como CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET, CYPHER_RTSP_USER/PASS e
-# qualquer CYPHER_<CAMERA>_USER/PASS só chegam ao processo se já estiverem
-# exportadas no shell que roda este script — senão o pipeline sobe silencioso
-# (sem erro), mas sem subir foto nenhuma pro Cloudinary (snapshotUrl fica
-# sempre null) e/ou sem expandir a fonte RTSP. Antes de rodar, garanta:
+# LEMBRETE — .env do cypher-capture não é carregado automaticamente por
+# run_pipeline.py nem pelo orquestrador (nenhum dos dois chama load_dotenv();
+# só src/utils/upload.py faz isso, e tarde demais pro uploader do Cloudinary
+# ser escolhido). Este script já resolve isso sozinho desde 2026-10-21: o
+# "start" sempre faz `source "$CAPTURE_DIR/.env"` antes de decidir device ou
+# subir qualquer processo — então rodando via este script, Cloudinary e
+# credenciais RTSP (CYPHER_RTSP_USER/PASS, CYPHER_<CAMERA>_USER/PASS) sempre
+# chegam ao pipeline. O lembrete só importa se você subir run_pipeline.py OU
+# src.orchestrator NA MÃO, fora deste script — aí ainda precisa de:
 #   cd cypher-capture && set -a && source .env && set +a
 # (achado 2026-10-20, ao cadastrar a câmera CAM-TEATRO1/VIPC-1230-B-G2 do
 # ambiente simulado em teatro: 29 incidentes saíram com snapshotUrl null até
 # perceber que faltava isso.)
+#
+# CUDA: "start" já detecta e usa GPU automaticamente quando o PyTorch do
+# venv enxerga uma (sem precisar passar --device) — cai pra CPU sozinho em
+# máquina sem GPU. Não hardcodamos "cuda" aqui de propósito, pra o script
+# continuar funcionando em qualquer notebook da equipe.
 #
 # Onde estão os repositórios: por padrão, as pastas vizinhas da que contém este
 # script (clone os 3 lado a lado: cypher-front, cypher-capture e o backend, que
@@ -151,6 +157,20 @@ cmd_start() {
   [ -d "$BACKEND_DIR" ] || die "backend não encontrado em $BACKEND_DIR — clone ao lado deste repositório ou defina CYPHER_BACKEND_DIR"
   [ -d "$FRONT_DIR" ] || die "front não encontrado em $FRONT_DIR — defina CYPHER_FRONT_DIR"
   [ -d "$CAPTURE_DIR" ] || die "capture não encontrado em $CAPTURE_DIR — defina CYPHER_CAPTURE_DIR"
+
+  # Carrega o .env do capture ANTES de decidir device ou subir qualquer
+  # processo: resolve de vez o lembrete do cabeçalho (Cloudinary e
+  # credenciais RTSP deixavam de chegar ao pipeline quando o shell que
+  # rodava este script não tinha o .env já exportado). Com isso o "start"
+  # deste script sempre sobe com Cloudinary configurado, se o .env existir.
+  if [ -f "$CAPTURE_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$CAPTURE_DIR/.env"
+    set +a
+  else
+    warn "$CAPTURE_DIR/.env não existe — subindo sem Cloudinary/credenciais RTSP"
+  fi
 
   # Python do capture: venv do projeto se existir, senão o do sistema.
   local py="./venv/bin/python"
