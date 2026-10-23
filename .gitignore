@@ -59,6 +59,10 @@ outputs/zones-config-cache.json
 outputs/epi-checklist-cache.json
 outputs/orchestrator-logs/
 
+# Snapshots do modo backup local (--snapshot-mode local) — fotos reais de
+# incidente geradas em runtime, nunca devem ir para o repositorio.
+outputs/snapshots/
+
 # IDE
 .vscode/
 .idea/

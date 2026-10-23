@@ -10,34 +10,47 @@
 #
 # Uso:
 #   ./scripts/subir-empresa-demo.sh start   [--no-seed] [--orchestrator] [--device cuda|cpu] [--source <video|índice>]
+#   ./scripts/subir-empresa-demo.sh start-teatro [--no-seed] [--device cuda|cpu] [--cameras CAM-TEATRO1,CAM-TEATRO2] [--backup | --snapshot-mode auto|cloudinary|local|off]
 #   ./scripts/subir-empresa-demo.sh status
 #   ./scripts/subir-empresa-demo.sh stop
-#   ./scripts/subir-empresa-demo.sh logs [backend|front|capture]
+#   ./scripts/subir-empresa-demo.sh logs [backend|front|capture|<camera-id>]
 #
 # "start" sobe backend → (semeia empresa demo, se ainda não tiver rodado) →
 # front → um pipeline de captura (CAM-WEBCAM, ver empresa-demo-runbook.md §4)
 # lendo --source (ex.: 0 para a webcam) ou, por padrão, o vídeo de demonstração
-# versionado em cypher-capture/data/demo/. Com --orchestrator,
-# sobe o orquestrador de
-# processos (reconcilia todo o catálogo, inclusive as câmeras RTSP reais —
-# exige CYPHER_RTSP_USER/CYPHER_RTSP_PASS num .env do cypher-capture).
+# versionado em cypher-capture/data/demo/. Com --orchestrator, sobe o
+# orquestrador de processos (reconcilia todo o catálogo, inclusive as
+# câmeras RTSP reais — exige CYPHER_RTSP_USER/CYPHER_RTSP_PASS num .env do
+# cypher-capture).
+#
+# "start-teatro" é o comando pra arena/banca: backend + front + um pipeline
+# DEDICADO por câmera real do teatro (não usa o orquestrador — o catálogo
+# tem câmeras da meta indústria com IP inalcançável fora daquela rede, e o
+# orquestrador gastaria as vagas de concorrência tentando conectar nelas).
+# Dois jeitos de rodar, pelo mesmo comando (--backup muda só o destino do
+# snapshot, tudo o resto é igual):
+#   ./scripts/subir-empresa-demo.sh start-teatro            # completo: Cloudinary + LLM (precisa de internet)
+#   ./scripts/subir-empresa-demo.sh start-teatro --backup   # backup: snapshot local, sem Cloudinary (funciona offline)
+# Câmeras: default CAM-TEATRO1 (única com credencial resolvida em 2026-10);
+# passe --cameras CAM-TEATRO1,CAM-TEATRO2 se as outras forem configuradas
+# antes do evento, ou defina CYPHER_TEATRO_CAMERAS no ambiente.
 #
 # LEMBRETE — .env do cypher-capture não é carregado automaticamente por
 # run_pipeline.py nem pelo orquestrador (nenhum dos dois chama load_dotenv();
 # só src/utils/upload.py faz isso, e tarde demais pro uploader do Cloudinary
-# ser escolhido). Este script já resolve isso sozinho desde 2026-10-21: o
-# "start" sempre faz `source "$CAPTURE_DIR/.env"` antes de decidir device ou
-# subir qualquer processo — então rodando via este script, Cloudinary e
-# credenciais RTSP (CYPHER_RTSP_USER/PASS, CYPHER_<CAMERA>_USER/PASS) sempre
-# chegam ao pipeline. O lembrete só importa se você subir run_pipeline.py OU
-# src.orchestrator NA MÃO, fora deste script — aí ainda precisa de:
+# ser escolhido). Este script já resolve isso sozinho desde 2026-10-21: todo
+# comando que sobe captura faz `source "$CAPTURE_DIR/.env"` antes de decidir
+# device ou subir qualquer processo. O mesmo vale para o `.env` do backend
+# (CYPHER_LLM_PROVIDER/CYPHER_GEMINI_API_KEY, desde 2026-10-23). O lembrete
+# só importa se você subir run_pipeline.py OU src.orchestrator NA MÃO, fora
+# deste script — aí ainda precisa de:
 #   cd cypher-capture && set -a && source .env && set +a
 # (achado 2026-10-20, ao cadastrar a câmera CAM-TEATRO1/VIPC-1230-B-G2 do
 # ambiente simulado em teatro: 29 incidentes saíram com snapshotUrl null até
 # perceber que faltava isso.)
 #
-# CUDA: "start" já detecta e usa GPU automaticamente quando o PyTorch do
-# venv enxerga uma (sem precisar passar --device) — cai pra CPU sozinho em
+# CUDA: já detecta e usa GPU automaticamente quando o PyTorch do venv
+# enxerga uma (sem precisar passar --device) — cai pra CPU sozinho em
 # máquina sem GPU. Não hardcodamos "cuda" aqui de propósito, pra o script
 # continuar funcionando em qualquer notebook da equipe.
 #
@@ -56,6 +69,7 @@
 #   CYPHER_API_URL        default: http://localhost:8080/api/v1
 #   CYPHER_GESTOR_USER     default: gestor@demo   (conta de serviço usada pelo pipeline/orquestrador)
 #   CYPHER_GESTOR_PASSWORD default: $CYPHER_DEMO_GESTOR_PASSWORD
+#   CYPHER_TEATRO_CAMERAS  default: CAM-TEATRO1   (lista separada por vírgula, usada por start-teatro)
 
 set -uo pipefail
 
@@ -90,6 +104,9 @@ SEED_MARKER="$RUN_DIR/seed-demo.done"
 BACKEND_LOG="$RUN_DIR/backend.log"
 FRONT_LOG="$RUN_DIR/front.log"
 CAPTURE_LOG="$RUN_DIR/capture.log"
+
+TEATRO_CAMERAS_DEFAULT="${CYPHER_TEATRO_CAMERAS:-CAM-TEATRO1}"
+TEATRO_BASE_PORT=8102
 
 log()  { echo "[subir-empresa-demo] $*"; }
 warn() { echo "[subir-empresa-demo] AVISO: $*" >&2; }
@@ -140,6 +157,72 @@ wait_for_health() {
   log "backend no ar."
 }
 
+checar_diretorios() {
+  [ -d "$BACKEND_DIR" ] || die "backend não encontrado em $BACKEND_DIR — clone ao lado deste repositório ou defina CYPHER_BACKEND_DIR"
+  [ -d "$FRONT_DIR" ] || die "front não encontrado em $FRONT_DIR — defina CYPHER_FRONT_DIR"
+  [ -d "$CAPTURE_DIR" ] || die "capture não encontrado em $CAPTURE_DIR — defina CYPHER_CAPTURE_DIR"
+}
+
+# Carrega o .env do capture (Cloudinary, CYPHER_RTSP_*/CYPHER_<CAMERA>_*) e
+# resolve PY/DEVICE globais — chamado por todo comando que sobe captura.
+# Ver "LEMBRETE" no cabeçalho.
+carregar_env_capture_e_resolver_device() {
+  local device_forcado="$1"
+  if [ -f "$CAPTURE_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$CAPTURE_DIR/.env"
+    set +a
+  else
+    warn "$CAPTURE_DIR/.env não existe — subindo sem Cloudinary/credenciais RTSP"
+  fi
+
+  PY="./venv/bin/python"
+  [ -x "$CAPTURE_DIR/venv/bin/python" ] || PY="python3"
+
+  if [ -n "$device_forcado" ]; then
+    DEVICE="$device_forcado"
+  elif (cd "$CAPTURE_DIR" && "$PY" -c "import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)") >/dev/null 2>&1; then
+    DEVICE="cuda"
+  else
+    DEVICE="cpu"
+    log "GPU não disponível para o PyTorch — usando --device cpu (a detecção roda em poucos FPS, é esperado)"
+  fi
+}
+
+# Carrega o .env do backend (CYPHER_LLM_PROVIDER/CYPHER_GEMINI_API_KEY ou
+# CYPHER_CLAUDE_API_KEY, ver cypher.llm no application.yaml), sobe o
+# backend, espera health, semeia (se pedido) e sobe o front. Compartilhado
+# por "start" e "start-teatro".
+subir_backend_e_front() {
+  local no_seed="$1"
+
+  if [ -f "$BACKEND_DIR/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$BACKEND_DIR/.env"
+    set +a
+  fi
+
+  log "backend ($BACKEND_DIR)"
+  start_bg "$BACKEND_PID_FILE" "$BACKEND_LOG" "$BACKEND_DIR" ./mvnw spring-boot:run
+  wait_for_health
+
+  if [ "$no_seed" -eq 0 ] && [ ! -f "$SEED_MARKER" ]; then
+    log "semeando empresa demo (câmeras reais + equipes de teste)"
+    if (cd "$BACKEND_DIR" && CYPHER_DEMO_GESTOR_PASSWORD="$GESTOR_PASSWORD" CYPHER_DEMO_OPERADOR_PASSWORD="$OPERADOR_PASSWORD" ./scripts/seed-empresa-demo.sh); then
+      touch "$SEED_MARKER"
+    else
+      warn "seed falhou ou já tinha sido rodado antes — veja docs/empresa-demo-runbook.md antes de rodar de novo (histórico de gamificação não é idempotente)"
+    fi
+  else
+    log "seed pulado (--no-seed ou já rodado antes: $SEED_MARKER)"
+  fi
+
+  log "front ($FRONT_DIR)"
+  start_bg "$FRONT_PID_FILE" "$FRONT_LOG" "$FRONT_DIR" npm start
+}
+
 cmd_start() {
   local no_seed=0 use_orchestrator=0 no_capture=0 device="" source_arg=""
   while [ $# -gt 0 ]; do
@@ -154,38 +237,9 @@ cmd_start() {
     shift
   done
 
-  [ -d "$BACKEND_DIR" ] || die "backend não encontrado em $BACKEND_DIR — clone ao lado deste repositório ou defina CYPHER_BACKEND_DIR"
-  [ -d "$FRONT_DIR" ] || die "front não encontrado em $FRONT_DIR — defina CYPHER_FRONT_DIR"
-  [ -d "$CAPTURE_DIR" ] || die "capture não encontrado em $CAPTURE_DIR — defina CYPHER_CAPTURE_DIR"
-
-  # Carrega o .env do capture ANTES de decidir device ou subir qualquer
-  # processo: resolve de vez o lembrete do cabeçalho (Cloudinary e
-  # credenciais RTSP deixavam de chegar ao pipeline quando o shell que
-  # rodava este script não tinha o .env já exportado). Com isso o "start"
-  # deste script sempre sobe com Cloudinary configurado, se o .env existir.
-  if [ -f "$CAPTURE_DIR/.env" ]; then
-    set -a
-    # shellcheck disable=SC1091
-    source "$CAPTURE_DIR/.env"
-    set +a
-  else
-    warn "$CAPTURE_DIR/.env não existe — subindo sem Cloudinary/credenciais RTSP"
-  fi
-
-  # Python do capture: venv do projeto se existir, senão o do sistema.
-  local py="./venv/bin/python"
-  [ -x "$CAPTURE_DIR/venv/bin/python" ] || py="python3"
-
-  # Device: usa CUDA só se o PyTorch instalado no venv enxergar a GPU; senão CPU
-  # (mais lento, mas funciona em qualquer máquina).
-  if [ -z "$device" ]; then
-    if (cd "$CAPTURE_DIR" && "$py" -c "import sys, torch; sys.exit(0 if torch.cuda.is_available() else 1)") >/dev/null 2>&1; then
-      device="cuda"
-    else
-      device="cpu"
-      log "GPU não disponível para o PyTorch — usando --device cpu (a detecção roda em poucos FPS, é esperado)"
-    fi
-  fi
+  checar_diretorios
+  carregar_env_capture_e_resolver_device "$device"
+  local py="$PY" device_resolvido="$DEVICE"
 
   # Fonte de vídeo: --source (ex.: 0 para a webcam) ou, por padrão, o vídeo de
   # demonstração versionado — assim o resultado não depende de ter webcam.
@@ -194,23 +248,8 @@ cmd_start() {
     log "fonte padrão: vídeo de demonstração (use --source 0 para a webcam)"
   fi
 
-  log "1/4 — backend ($BACKEND_DIR)"
-  start_bg "$BACKEND_PID_FILE" "$BACKEND_LOG" "$BACKEND_DIR" ./mvnw spring-boot:run
-  wait_for_health
-
-  if [ "$no_seed" -eq 0 ] && [ ! -f "$SEED_MARKER" ]; then
-    log "2/4 — semeando empresa demo (câmeras reais + equipes de teste)"
-    if (cd "$BACKEND_DIR" && CYPHER_DEMO_GESTOR_PASSWORD="$GESTOR_PASSWORD" CYPHER_DEMO_OPERADOR_PASSWORD="$OPERADOR_PASSWORD" ./scripts/seed-empresa-demo.sh); then
-      touch "$SEED_MARKER"
-    else
-      warn "seed falhou ou já tinha sido rodado antes — veja docs/empresa-demo-runbook.md antes de rodar de novo (histórico de gamificação não é idempotente)"
-    fi
-  else
-    log "2/4 — seed pulado (--no-seed ou já rodado antes: $SEED_MARKER)"
-  fi
-
-  log "3/4 — front ($FRONT_DIR)"
-  start_bg "$FRONT_PID_FILE" "$FRONT_LOG" "$FRONT_DIR" npm start
+  log "1/4 — backend+front"
+  subir_backend_e_front "$no_seed"
 
   log "4/4 — capture ($CAPTURE_DIR)"
   if [ "$no_capture" -eq 1 ]; then
@@ -223,9 +262,55 @@ cmd_start() {
     log "modo câmera única CAM-WEBCAM, fonte: $source_arg (ver empresa-demo-runbook.md §4)"
     start_bg "$CAPTURE_PID_FILE" "$CAPTURE_LOG" "$CAPTURE_DIR" \
       "$py" src/run_pipeline.py \
-        --source "$source_arg" --device "$device" --no-display \
+        --source "$source_arg" --device "$device_resolvido" --no-display \
         --camera-id CAM-WEBCAM --api-url "$API_URL"
   fi
+
+  log "pronto. Front em http://localhost:4200 — login gestor@demo / \$CYPHER_DEMO_GESTOR_PASSWORD"
+  cmd_status
+}
+
+cmd_start_teatro() {
+  local no_seed=0 device="" snapshot_mode="auto" cameras="$TEATRO_CAMERAS_DEFAULT"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --no-seed) no_seed=1 ;;
+      --device) device="$2"; shift ;;
+      --backup) snapshot_mode="local" ;;
+      --snapshot-mode) snapshot_mode="$2"; shift ;;
+      --cameras) cameras="$2"; shift ;;
+      *) die "flag desconhecida: $1" ;;
+    esac
+    shift
+  done
+
+  checar_diretorios
+  carregar_env_capture_e_resolver_device "$device"
+  local py="$PY" device_resolvido="$DEVICE"
+
+  log "1/2 — backend+front"
+  subir_backend_e_front "$no_seed"
+
+  log "2/2 — capture (câmeras: $cameras, snapshot: $snapshot_mode)"
+  if [ "$snapshot_mode" = "local" ]; then
+    log "MODO BACKUP: snapshots salvos localmente (sem Cloudinary) — use se a internet da arena estiver instável"
+  fi
+
+  local porta=$TEATRO_BASE_PORT
+  local lista_cameras
+  IFS=',' read -ra lista_cameras <<< "$cameras"
+  for cam in "${lista_cameras[@]}"; do
+    [ -n "$cam" ] || continue
+    local pidfile="$RUN_DIR/capture-${cam}.pid"
+    local logfile="$RUN_DIR/capture-${cam}.log"
+    log "  $cam -> porta $porta"
+    start_bg "$pidfile" "$logfile" "$CAPTURE_DIR" \
+      "$py" src/run_pipeline.py \
+        --camera-id "$cam" --api-url "$API_URL" \
+        --stream-port "$porta" --device "$device_resolvido" --no-display \
+        --snapshot-mode "$snapshot_mode"
+    porta=$((porta + 1))
+  done
 
   log "pronto. Front em http://localhost:4200 — login gestor@demo / \$CYPHER_DEMO_GESTOR_PASSWORD"
   cmd_status
@@ -240,9 +325,24 @@ cmd_status() {
       echo "$nome: parado"
     fi
   done
+  shopt -s nullglob
+  for pidfile in "$RUN_DIR"/capture-*.pid; do
+    local nome; nome="$(basename "$pidfile" .pid)"
+    if is_running "$pidfile"; then
+      echo "$nome: rodando (pid $(cat "$pidfile"))"
+    else
+      echo "$nome: parado"
+    fi
+  done
+  shopt -u nullglob
 }
 
 cmd_stop() {
+  shopt -s nullglob
+  for pidfile in "$RUN_DIR"/capture-*.pid; do
+    stop_one "$(basename "$pidfile" .pid)" "$pidfile"
+  done
+  shopt -u nullglob
   stop_one "capture" "$CAPTURE_PID_FILE"
   stop_one "front" "$FRONT_PID_FILE"
   stop_one "backend" "$BACKEND_PID_FILE"
@@ -253,14 +353,24 @@ cmd_logs() {
     backend) tail -f "$BACKEND_LOG" ;;
     front) tail -f "$FRONT_LOG" ;;
     capture) tail -f "$CAPTURE_LOG" ;;
-    *) tail -f "$BACKEND_LOG" "$FRONT_LOG" "$CAPTURE_LOG" ;;
+    "")
+      shopt -s nullglob
+      tail -f "$BACKEND_LOG" "$FRONT_LOG" "$CAPTURE_LOG" "$RUN_DIR"/capture-*.log
+      shopt -u nullglob
+      ;;
+    *)
+      local f="$RUN_DIR/capture-$1.log"
+      [ -f "$f" ] || die "log não encontrado: $f (câmeras ativas: veja '$0 status')"
+      tail -f "$f"
+      ;;
   esac
 }
 
 case "${1:-}" in
   start) shift; cmd_start "$@" ;;
+  start-teatro) shift; cmd_start_teatro "$@" ;;
   stop) cmd_stop ;;
   status) cmd_status ;;
   logs) shift; cmd_logs "$@" ;;
-  *) die "uso: $0 {start|stop|status|logs} [flags] — ver cabeçalho do script" ;;
+  *) die "uso: $0 {start|start-teatro|stop|status|logs} [flags] — ver cabeçalho do script" ;;
 esac

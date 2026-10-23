@@ -116,6 +116,13 @@ def parse_args() -> argparse.Namespace:
                    help="porta do stream MJPEG (default: do config)")
     p.add_argument("--no-stream", action="store_true",
                    help="nao sobe o servidor de video ao vivo")
+    p.add_argument("--snapshot-mode", default="auto", choices=["auto", "cloudinary", "local", "off"],
+                   help="destino do snapshot do incidente. 'auto' (default): Cloudinary "
+                        "se CLOUDINARY_CLOUD_NAME estiver no ambiente, senao nenhum. "
+                        "'cloudinary': forca Cloudinary (falha se a credencial nao "
+                        "estiver configurada). 'local': salva em outputs/snapshots/ e "
+                        "serve pelo mesmo host:porta do stream MJPEG (/snapshots/...) — "
+                        "modo backup sem depender de internet. 'off': nunca anexa foto.")
     p.add_argument("--zone-refresh-seconds", type=float, default=30.0,
                    help="hot-reload: intervalo (em segundos) para rebuscar zonas "
                         "remotas em segundo plano e aplicar sem reiniciar o "
@@ -268,10 +275,26 @@ def main() -> None:
 
     if notify_config.enabled:
         uploader = None
-        if os.getenv("CLOUDINARY_CLOUD_NAME"):
+        modo_snapshot = args.snapshot_mode
+        usa_cloudinary = modo_snapshot == "cloudinary" or (
+            modo_snapshot == "auto" and os.getenv("CLOUDINARY_CLOUD_NAME"))
+        if usa_cloudinary:
+            if not os.getenv("CLOUDINARY_CLOUD_NAME"):
+                raise SystemExit("[notify] --snapshot-mode cloudinary exige "
+                                  "CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET no ambiente")
             from src.notify.sink import CloudinaryUploader
             uploader = CloudinaryUploader(folder=os.getenv("CLOUDINARY_FOLDER", "cypher-incidents"))
             print(f"[notify] snapshots serao enviados ao Cloudinary (pasta: {uploader.folder})")
+        elif modo_snapshot == "local":
+            from src.notify.sink import LocalFileUploader
+            snapshot_dir = f"outputs/snapshots/{notify_config.camera_id}"
+            uploader = LocalFileUploader(
+                output_dir=snapshot_dir,
+                base_url=f"http://127.0.0.1:{notify_config.stream_port}")
+            print(f"[notify] snapshots serao salvos localmente em {snapshot_dir}/ "
+                  f"e servidos em {uploader.base_url}/snapshots/ (modo backup, sem internet)")
+        elif modo_snapshot == "off":
+            print("[notify] snapshots desativados (--snapshot-mode off)")
 
         # chave_provisionada ja foi resolvida mais acima (antes da busca de
         # config/zonas remotas) — reaproveitada aqui, sem provisionar de novo.
@@ -318,7 +341,10 @@ def main() -> None:
 
     stream = None
     if notify_config.stream_enabled:
-        stream = MjpegServer(port=notify_config.stream_port)
+        snapshot_dir_servido = (
+            f"outputs/snapshots/{notify_config.camera_id}"
+            if notify_config.enabled and args.snapshot_mode == "local" else None)
+        stream = MjpegServer(port=notify_config.stream_port, snapshot_dir=snapshot_dir_servido)
         stream.start()
 
         def _publish(frame):

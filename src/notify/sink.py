@@ -102,6 +102,39 @@ class CloudinaryUploader:
         return resposta["secure_url"]
 
 
+def _nome_arquivo_seguro(public_id: str) -> str:
+    """incident_key vira nome de arquivo: troca os ':' (track/timestamp) por
+    '_' — mesma string usada para montar a URL servida por MjpegServer."""
+    return public_id.replace(":", "_").replace("/", "_")
+
+
+class LocalFileUploader:
+    """Salva o snapshot em disco e devolve uma URL local, servida pelo mesmo
+    MjpegServer do stream (rota /snapshots/<arquivo>.jpg).
+
+    Fallback para quando a internet na arena está instável e o Cloudinary
+    não é confiável: zero dependência de rede externa, a imagem fica
+    acessível contanto que o front consiga chegar no host:porta do pipeline
+    (mesma rede local de sempre).
+    """
+
+    def __init__(self, output_dir: str, base_url: str, quality: int = 85) -> None:
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.base_url = base_url.rstrip("/")
+        self.quality = quality
+
+    def upload(self, frame, public_id: str) -> str:
+        import cv2
+
+        nome = _nome_arquivo_seguro(public_id) + ".jpg"
+        caminho = self.output_dir / nome
+        ok = cv2.imwrite(str(caminho), frame, [int(cv2.IMWRITE_JPEG_QUALITY), self.quality])
+        if not ok:
+            raise RuntimeError(f"cv2.imwrite falhou para '{caminho}'")
+        return f"{self.base_url}/snapshots/{nome}"
+
+
 class ConsoleIncidentSink:
     """Comportamento padrão sem API configurada: imprime e segue."""
 
