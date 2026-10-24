@@ -106,7 +106,6 @@ FRONT_LOG="$RUN_DIR/front.log"
 CAPTURE_LOG="$RUN_DIR/capture.log"
 
 TEATRO_CAMERAS_DEFAULT="${CYPHER_TEATRO_CAMERAS:-CAM-TEATRO1}"
-TEATRO_BASE_PORT=8102
 
 log()  { echo "[subir-empresa-demo] $*"; }
 warn() { echo "[subir-empresa-demo] AVISO: $*" >&2; }
@@ -296,21 +295,39 @@ cmd_start_teatro() {
     log "MODO BACKUP: snapshots salvos localmente (sem Cloudinary) — use se a internet da arena estiver instável"
   fi
 
-  local porta=$TEATRO_BASE_PORT
+  # A porta do stream TEM que ser a mesma que está no streamUrl cadastrado
+  # da câmera — é o que o front usa pra montar o <img src> do live feed
+  # (mesma pegadinha documentada em e1-runbook-local.md: a porta do comando
+  # não importa nada se não bater com o cadastro). Por isso lê a porta de
+  # cada câmera via API em vez de atribuir sequencial — achado 2026-10-24,
+  # ao cadastrar CAM-WEBCAM1/2 em portas (8105/8106) diferentes da sequência
+  # que o script antes assumia (8102, 8103, ...).
+  local cookie_jar; cookie_jar="$(mktemp)"
+  curl -sf -X POST "$API_URL/auth/login" -H "Content-Type: application/json" \
+    -d "{\"username\":\"$CYPHER_GESTOR_USER\",\"password\":\"$CYPHER_GESTOR_PASSWORD\"}" \
+    -c "$cookie_jar" -o /dev/null \
+    || die "não consegui logar como $CYPHER_GESTOR_USER em $API_URL pra ler a porta cadastrada das câmeras"
+
   local lista_cameras
   IFS=',' read -ra lista_cameras <<< "$cameras"
   for cam in "${lista_cameras[@]}"; do
     [ -n "$cam" ] || continue
+    local porta
+    porta=$(curl -sf "$API_URL/cameras/$cam" -b "$cookie_jar" 2>/dev/null \
+      | python3 -c "import json,sys; print(json.load(sys.stdin)['streamUrl'].rsplit(':',1)[1].split('/')[0])" 2>/dev/null)
+    if [ -z "$porta" ]; then
+      die "não consegui ler a porta cadastrada de $cam — confira se a câmera existe (GET $API_URL/cameras/$cam)"
+    fi
     local pidfile="$RUN_DIR/capture-${cam}.pid"
     local logfile="$RUN_DIR/capture-${cam}.log"
-    log "  $cam -> porta $porta"
+    log "  $cam -> porta $porta (do cadastro)"
     start_bg "$pidfile" "$logfile" "$CAPTURE_DIR" \
       "$py" src/run_pipeline.py \
         --camera-id "$cam" --api-url "$API_URL" \
         --stream-port "$porta" --device "$device_resolvido" --no-display \
         --snapshot-mode "$snapshot_mode"
-    porta=$((porta + 1))
   done
+  rm -f "$cookie_jar"
 
   log "pronto. Front em http://localhost:4200 — login gestor@demo / \$CYPHER_DEMO_GESTOR_PASSWORD"
   cmd_status
