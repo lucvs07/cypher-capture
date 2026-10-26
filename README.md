@@ -1,5 +1,9 @@
 # Cypher Capture — Visão Computacional Industrial
 
+<!-- portfolio:pt -->
+Pipeline de visão computacional do Cypher: usa YOLO para detectar EPIs, estimar a pose, calcular o escore ergonômico REBA e sinalizar zonas críticas, reportando incidentes ao backend com um processo por câmera.
+<!-- /portfolio:pt -->
+
 Monitoramento de segurança em tempo real para canteiros de obras, construído sobre [Ultralytics YOLO](https://docs.ultralytics.com/).
 
 O projeto tem duas fases que compartilham a mesma base de código:
